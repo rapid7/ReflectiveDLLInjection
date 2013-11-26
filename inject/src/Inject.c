@@ -1,5 +1,5 @@
 //===============================================================================================//
-// Copyright (c) 2012, Stephen Fewer of Harmony Security (www.harmonysecurity.com)
+// Copyright (c) 2013, Stephen Fewer of Harmony Security (www.harmonysecurity.com)
 // All rights reserved.
 // 
 // Redistribution and use in source and binary forms, with or without modification, are permitted 
@@ -48,7 +48,7 @@ int main( int argc, char * argv[] )
 	DWORD dwProcessId     = 0;
 	TOKEN_PRIVILEGES priv = {0};
 
-#ifdef WIN_X64
+#ifdef _WIN64
 	char * cpDllFile  = "reflective_dll.x64.dll";
 #else
 #ifdef WIN_X86

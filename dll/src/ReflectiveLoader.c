@@ -1,5 +1,5 @@
 //===============================================================================================//
-// Copyright (c) 2012, Stephen Fewer of Harmony Security (www.harmonysecurity.com)
+// Copyright (c) 2013, Stephen Fewer of Harmony Security (www.harmonysecurity.com)
 // All rights reserved.
 // 
 // Redistribution and use in source and binary forms, with or without modification, are permitted 
@@ -38,6 +38,12 @@ HINSTANCE hAppInstance = NULL;
 __declspec(noinline) ULONG_PTR caller( VOID ) { return (ULONG_PTR)_ReturnAddress(); }
 //===============================================================================================//
 
+#ifdef ENABLE_OUTPUTDEBUGSTRING
+#define OUTPUTDBG(str) pOutputDebug((LPCSTR)str)
+#else /* ENABLE_OUTPUTDEBUGSTRING */
+#define OUTPUTDBG(str) do{}while(0)
+#endif
+
 // Note 1: If you want to have your own DllMain, define REFLECTIVEDLLINJECTION_CUSTOM_DLLMAIN,  
 //         otherwise the DllMain at the end of this file will be used.
 
@@ -56,6 +62,12 @@ DLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 	GETPROCADDRESS pGetProcAddress = NULL;
 	VIRTUALALLOC pVirtualAlloc     = NULL;
 	NTFLUSHINSTRUCTIONCACHE pNtFlushInstructionCache = NULL;
+#ifdef ENABLE_STOPPAGING
+	VIRTUALLOCK pVirtualLock	   = NULL;
+#endif
+#ifdef ENABLE_OUTPUTDEBUGSTRING
+	OUTPUTDEBUG pOutputDebug       = NULL;
+#endif
 
 	USHORT usCounter;
 
@@ -107,13 +119,13 @@ DLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 	// STEP 1: process the kernels exports for the functions our loader needs...
 
 	// get the Process Enviroment Block
-#ifdef WIN_X64
+#ifdef _WIN64
 	uiBaseAddress = __readgsqword( 0x60 );
 #else
-#ifdef WIN_X86
-	uiBaseAddress = __readfsdword( 0x30 );
-#else WIN_ARM
+#ifdef WIN_ARM
 	uiBaseAddress = *(DWORD *)( (BYTE *)_MoveFromCoprocessor( 15, 0, 13, 0, 2 ) + 0x30 );
+#else _WIN32
+	uiBaseAddress = __readfsdword( 0x30 );
 #endif
 #endif
 
@@ -135,7 +147,7 @@ DLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 		do
 		{
 			uiValueC = ror( (DWORD)uiValueC );
-			// normalize to uppercase if the madule name is in lowercase
+			// normalize to uppercase if the module name is in lowercase
 			if( *((BYTE *)uiValueB) >= 'a' )
 				uiValueC += *((BYTE *)uiValueB) - 0x20;
 			else
@@ -165,15 +177,30 @@ DLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 			uiNameOrdinals = ( uiBaseAddress + ((PIMAGE_EXPORT_DIRECTORY )uiExportDir)->AddressOfNameOrdinals );
 
 			usCounter = 3;
+#ifdef ENABLE_STOPPAGING
+			usCounter++;
+#endif
+#ifdef ENABLE_OUTPUTDEBUGSTRING
+			usCounter++;
+#endif
 
 			// loop while we still have imports to find
 			while( usCounter > 0 )
 			{
 				// compute the hash values for this function name
-				dwHashValue = hash( (char *)( uiBaseAddress + DEREF_32( uiNameArray ) )  );
+				dwHashValue = _hash( (char *)( uiBaseAddress + DEREF_32( uiNameArray ) )  );
 				
 				// if we have found a function we want we get its virtual address
-				if( dwHashValue == LOADLIBRARYA_HASH || dwHashValue == GETPROCADDRESS_HASH || dwHashValue == VIRTUALALLOC_HASH )
+				if( dwHashValue == LOADLIBRARYA_HASH
+					|| dwHashValue == GETPROCADDRESS_HASH
+					|| dwHashValue == VIRTUALALLOC_HASH
+#ifdef ENABLE_STOPPAGING
+					|| dwHashValue == VIRTUALLOCK_HASH
+#endif
+#ifdef ENABLE_OUTPUTDEBUGSTRING
+					|| dwHashValue == OUTPUTDEBUG_HASH
+#endif
+					)
 				{
 					// get the VA for the array of addresses
 					uiAddressArray = ( uiBaseAddress + ((PIMAGE_EXPORT_DIRECTORY )uiExportDir)->AddressOfFunctions );
@@ -188,6 +215,14 @@ DLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 						pGetProcAddress = (GETPROCADDRESS)( uiBaseAddress + DEREF_32( uiAddressArray ) );
 					else if( dwHashValue == VIRTUALALLOC_HASH )
 						pVirtualAlloc = (VIRTUALALLOC)( uiBaseAddress + DEREF_32( uiAddressArray ) );
+#ifdef ENABLE_STOPPAGING
+					else if( dwHashValue == VIRTUALLOCK_HASH )
+						pVirtualLock = (VIRTUALLOCK)( uiBaseAddress + DEREF_32( uiAddressArray ) );
+#endif
+#ifdef ENABLE_OUTPUTDEBUGSTRING
+					else if( dwHashValue == OUTPUTDEBUG_HASH )
+						pOutputDebug = (OUTPUTDEBUG)( uiBaseAddress + DEREF_32( uiAddressArray ) );
+#endif
 			
 					// decrement our counter
 					usCounter--;
@@ -226,7 +261,7 @@ DLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 			while( usCounter > 0 )
 			{
 				// compute the hash values for this function name
-				dwHashValue = hash( (char *)( uiBaseAddress + DEREF_32( uiNameArray ) )  );
+				dwHashValue = _hash( (char *)( uiBaseAddress + DEREF_32( uiNameArray ) )  );
 				
 				// if we have found a function we want we get its virtual address
 				if( dwHashValue == NTFLUSHINSTRUCTIONCACHE_HASH )
@@ -254,7 +289,17 @@ DLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 		}
 
 		// we stop searching when we have found everything we need.
-		if( pLoadLibraryA && pGetProcAddress && pVirtualAlloc && pNtFlushInstructionCache )
+		if( pLoadLibraryA
+			&& pGetProcAddress
+			&& pVirtualAlloc
+#ifdef ENABLE_STOPPAGING
+			&& pVirtualLock
+#endif
+			&& pNtFlushInstructionCache
+#ifdef ENABLE_OUTPUTDEBUGSTRING
+			&& pOutputDebug
+#endif
+			)
 			break;
 
 		// get the next entry
@@ -269,6 +314,11 @@ DLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 	// allocate all the memory for the DLL to be loaded into. we can load at any address because we will  
 	// relocate the image. Also zeros all memory and marks it as READ, WRITE and EXECUTE to avoid any problems.
 	uiBaseAddress = (ULONG_PTR)pVirtualAlloc( NULL, ((PIMAGE_NT_HEADERS)uiHeaderValue)->OptionalHeader.SizeOfImage, MEM_RESERVE|MEM_COMMIT, PAGE_EXECUTE_READWRITE );
+
+#ifdef ENABLE_STOPPAGING
+	// prevent our image from being swapped to the pagefile
+	pVirtualLock((LPVOID)uiBaseAddress, ((PIMAGE_NT_HEADERS)uiHeaderValue)->OptionalHeader.SizeOfImage);
+#endif
 
 	// we must now copy over the headers
 	uiValueA = ((PIMAGE_NT_HEADERS)uiHeaderValue)->OptionalHeader.SizeOfHeaders;
@@ -308,15 +358,27 @@ DLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 	// uiValueB = the address of the import directory
 	uiValueB = (ULONG_PTR)&((PIMAGE_NT_HEADERS)uiHeaderValue)->OptionalHeader.DataDirectory[ IMAGE_DIRECTORY_ENTRY_IMPORT ];
 	
-	// we assume their is an import table to process
+	// we assume there is an import table to process
 	// uiValueC is the first entry in the import table
 	uiValueC = ( uiBaseAddress + ((PIMAGE_DATA_DIRECTORY)uiValueB)->VirtualAddress );
 	
-	// itterate through all imports
-	while( ((PIMAGE_IMPORT_DESCRIPTOR)uiValueC)->Name )
+	// iterate through all imports until a null RVA is found (Characteristics is mis-named)
+	while( ((PIMAGE_IMPORT_DESCRIPTOR)uiValueC)->Characteristics )
 	{
+		OUTPUTDBG("Loading library: ");
+		OUTPUTDBG((LPCSTR)(uiBaseAddress + ((PIMAGE_IMPORT_DESCRIPTOR)uiValueC)->Name));
+		OUTPUTDBG("\n");
+
 		// use LoadLibraryA to load the imported module into memory
 		uiLibraryAddress = (ULONG_PTR)pLoadLibraryA( (LPCSTR)( uiBaseAddress + ((PIMAGE_IMPORT_DESCRIPTOR)uiValueC)->Name ) );
+
+		if ( !uiLibraryAddress )
+		{
+			OUTPUTDBG("Loading library FAILED\n");
+
+			uiValueC += sizeof( IMAGE_IMPORT_DESCRIPTOR );
+			continue;
+		}
 
 		// uiValueD = VA of the OriginalFirstThunk
 		uiValueD = ( uiBaseAddress + ((PIMAGE_IMPORT_DESCRIPTOR)uiValueC)->OriginalFirstThunk );
@@ -352,6 +414,10 @@ DLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 			{
 				// get the VA of this functions import by name struct
 				uiValueB = ( uiBaseAddress + DEREF(uiValueA) );
+
+				OUTPUTDBG("Resolving function: ");
+				OUTPUTDBG(((PIMAGE_IMPORT_BY_NAME)uiValueB)->Name);
+				OUTPUTDBG("\n");
 
 				// use GetProcAddress and patch in the address for this imported function
 				DEREF(uiValueA) = (ULONG_PTR)pGetProcAddress( (HMODULE)uiLibraryAddress, (LPCSTR)((PIMAGE_IMPORT_BY_NAME)uiValueB)->Name );
@@ -454,6 +520,7 @@ DLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 	// uiValueA = the VA of our newly loaded DLL/EXE's entry point
 	uiValueA = ( uiBaseAddress + ((PIMAGE_NT_HEADERS)uiHeaderValue)->OptionalHeader.AddressOfEntryPoint );
 
+	OUTPUTDBG("Flushing the instruction cache");
 	// We must flush the instruction cache to avoid stale code being used which was updated by our relocation processing.
 	pNtFlushInstructionCache( (HANDLE)-1, NULL, 0 );
 
@@ -472,11 +539,47 @@ DLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 //===============================================================================================//
 #ifndef REFLECTIVEDLLINJECTION_CUSTOM_DLLMAIN
 
+// you must implement this function...
+extern DWORD DLLEXPORT Init( SOCKET socket );
+
+BOOL MetasploitDllAttach( SOCKET socket )
+{
+	Init( socket );
+	return TRUE;
+}
+
+BOOL MetasploitDllDetach( DWORD dwExitFunc )
+{
+	switch( dwExitFunc )
+	{
+		case EXITFUNC_SEH:
+			SetUnhandledExceptionFilter( NULL );
+			break;
+		case EXITFUNC_THREAD:
+			ExitThread( 0 );
+			break;
+		case EXITFUNC_PROCESS:
+			ExitProcess( 0 );
+			break;
+		default:
+			break;
+	}
+
+	return TRUE;
+}
+
 BOOL WINAPI DllMain( HINSTANCE hinstDLL, DWORD dwReason, LPVOID lpReserved )
 {
     BOOL bReturnValue = TRUE;
+
 	switch( dwReason ) 
     { 
+		case DLL_METASPLOIT_ATTACH:
+			bReturnValue = MetasploitDllAttach( (SOCKET)lpReserved );
+			break;
+		case DLL_METASPLOIT_DETACH:
+			bReturnValue = MetasploitDllDetach( (DWORD)lpReserved );
+			break;
 		case DLL_QUERY_HMODULE:
 			if( lpReserved != NULL )
 				*(HMODULE *)lpReserved = hAppInstance;

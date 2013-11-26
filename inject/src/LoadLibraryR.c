@@ -1,5 +1,5 @@
 //===============================================================================================//
-// Copyright (c) 2012, Stephen Fewer of Harmony Security (www.harmonysecurity.com)
+// Copyright (c) 2013, Stephen Fewer of Harmony Security (www.harmonysecurity.com)
 // All rights reserved.
 // 
 // Redistribution and use in source and binary forms, with or without modification, are permitted 
@@ -26,7 +26,6 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //===============================================================================================//
 #include "LoadLibraryR.h"
-#include <stdio.h>
 //===============================================================================================//
 DWORD Rva2Offset( DWORD dwRva, UINT_PTR uiBaseAddress )
 {    
@@ -58,11 +57,11 @@ DWORD GetReflectiveLoaderOffset( VOID * lpReflectiveDllBuffer )
 	UINT_PTR uiAddressArray  = 0;
 	UINT_PTR uiNameOrdinals  = 0;
 	DWORD dwCounter          = 0;
-#ifdef WIN_X64
-	DWORD dwCompiledArch = 2;
+#ifdef _WIN64
+	DWORD dwMeterpreterArch = 2;
 #else
 	// This will catch Win32 and WinRT.
-	DWORD dwCompiledArch = 1;
+	DWORD dwMeterpreterArch = 1;
 #endif
 
 	uiBaseAddress = (UINT_PTR)lpReflectiveDllBuffer;
@@ -74,12 +73,12 @@ DWORD GetReflectiveLoaderOffset( VOID * lpReflectiveDllBuffer )
 	// been compiled as, due to various offset in the PE structures being defined at compile time.
 	if( ((PIMAGE_NT_HEADERS)uiExportDir)->OptionalHeader.Magic == 0x010B ) // PE32
 	{
-		if( dwCompiledArch != 1 )
+		if( dwMeterpreterArch != 1 )
 			return 0;
 	}
 	else if( ((PIMAGE_NT_HEADERS)uiExportDir)->OptionalHeader.Magic == 0x020B ) // PE64
 	{
-		if( dwCompiledArch != 2 )
+		if( dwMeterpreterArch != 2 )
 			return 0;
 	}
 	else
@@ -161,6 +160,7 @@ HMODULE WINAPI LoadLibraryR( LPVOID lpBuffer, DWORD dwLength )
 				if( pDllMain != NULL )
 				{
 					// call the loaded librarys DllMain to get its HMODULE
+					// Dont call DLL_METASPLOIT_ATTACH/DLL_METASPLOIT_DETACH as that is for payloads only.
 					if( !pDllMain( NULL, DLL_QUERY_HMODULE, &hResult ) )	
 						hResult = NULL;
 				}
@@ -187,7 +187,6 @@ HMODULE WINAPI LoadLibraryR( LPVOID lpBuffer, DWORD dwLength )
 //       same as the arch this function is compiled as, e.g. x86->x86 and x64->x64 but not x64->x86 or x86->x64.
 HANDLE WINAPI LoadRemoteLibraryR( HANDLE hProcess, LPVOID lpBuffer, DWORD dwLength, LPVOID lpParameter )
 {
-	BOOL bSuccess                             = FALSE;
 	LPVOID lpRemoteLibraryBuffer              = NULL;
 	LPTHREAD_START_ROUTINE lpReflectiveLoader = NULL;
 	HANDLE hThread                            = NULL;
@@ -214,7 +213,7 @@ HANDLE WINAPI LoadRemoteLibraryR( HANDLE hProcess, LPVOID lpBuffer, DWORD dwLeng
 			// write the image into the host process...
 			if( !WriteProcessMemory( hProcess, lpRemoteLibraryBuffer, lpBuffer, dwLength, NULL ) )
 				break;
-			
+
 			// add the offset to ReflectiveLoader() to the remote library address...
 			lpReflectiveLoader = (LPTHREAD_START_ROUTINE)( (ULONG_PTR)lpRemoteLibraryBuffer + dwReflectiveLoaderOffset );
 

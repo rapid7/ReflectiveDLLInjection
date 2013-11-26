@@ -9,8 +9,9 @@ inject/Release/
 inject/Debug/
 inject/inject.vcproj.*.user
 inject/inject.vcxproj.user
-rdi.ncb
-rdi.suo
-rdi.sdf
-rdi.opensdf
-rdi.v11.suo
+*.ncb
+*.suo
+*.sdf
+*.opensdf
+*.suo
+bin/

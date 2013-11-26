@@ -1,5 +1,5 @@
 //===============================================================================================//
-// Copyright (c) 2012, Stephen Fewer of Harmony Security (www.harmonysecurity.com)
+// Copyright (c) 2013, Stephen Fewer of Harmony Security (www.harmonysecurity.com)
 // All rights reserved.
 // 
 // Redistribution and use in source and binary forms, with or without modification, are permitted 
@@ -35,6 +35,16 @@
 
 #include "ReflectiveDLLInjection.h"
 
+// Enable this define to turn on OutputDebugString support
+//#define ENABLE_OUTPUTDEBUGSTRING 1
+
+// Enable this define to turn on locking of memory to prevent paging
+#define ENABLE_STOPPAGING 1
+
+#define EXITFUNC_SEH		0xEA320EFE
+#define EXITFUNC_THREAD		0x0A2A1DE0
+#define EXITFUNC_PROCESS	0x56A2B5F0
+
 typedef HMODULE (WINAPI * LOADLIBRARYA)( LPCSTR );
 typedef FARPROC (WINAPI * GETPROCADDRESS)( HMODULE, LPCSTR );
 typedef LPVOID  (WINAPI * VIRTUALALLOC)( LPVOID, SIZE_T, DWORD, DWORD );
@@ -47,6 +57,16 @@ typedef DWORD  (NTAPI * NTFLUSHINSTRUCTIONCACHE)( HANDLE, PVOID, ULONG );
 #define GETPROCADDRESS_HASH				0x7C0DFCAA
 #define VIRTUALALLOC_HASH				0x91AFCA54
 #define NTFLUSHINSTRUCTIONCACHE_HASH	0x534C0AB8
+
+#ifdef ENABLE_STOPPAGING
+typedef LPVOID  (WINAPI * VIRTUALLOCK)( LPVOID, SIZE_T );
+#define VIRTUALLOCK_HASH				0x0EF632F2
+#endif
+
+#ifdef ENABLE_OUTPUTDEBUGSTRING
+typedef LPVOID  (WINAPI * OUTPUTDEBUG)( LPCSTR );
+#define OUTPUTDEBUG_HASH				0x470D22BC
+#endif
 
 #define IMAGE_REL_BASED_ARM_MOV32A		5
 #define IMAGE_REL_BASED_ARM_MOV32T		7
@@ -65,7 +85,7 @@ __forceinline DWORD ror( DWORD d )
 	return _rotr( d, HASH_KEY );
 }
 
-__forceinline DWORD hash( char * c )
+__forceinline DWORD _hash( char * c )
 {
     register DWORD h = 0;
 	do

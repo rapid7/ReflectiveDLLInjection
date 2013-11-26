@@ -28,7 +28,7 @@
     <ClInclude Include="src\LoadLibraryR.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\ReflectiveDLLInjection.h">
+    <ClInclude Include="..\common\ReflectiveDLLInjection.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

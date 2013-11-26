@@ -19,10 +19,10 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\ReflectiveDLLInjection.h">
+    <ClInclude Include="src\ReflectiveLoader.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\ReflectiveLoader.h">
+    <ClInclude Include="..\common\ReflectiveDLLInjection.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

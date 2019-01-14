@@ -35,7 +35,7 @@ HINSTANCE hAppInstance = NULL;
 // this code will be compiled with the /O2 and /Ob1 switches. Bonus points if we could take advantage of 
 // RIP relative addressing in this instance but I dont believe we can do so with the compiler intrinsics 
 // available (and no inline asm available under x64).
-__declspec(noinline) ULONG_PTR caller( VOID ) { return (ULONG_PTR)_ReturnAddress(); }
+__declspec(noinline) ULONG_PTR caller( VOID ) { return (ULONG_PTR)__builtin_return_address(0); }
 //===============================================================================================//
 
 #ifdef ENABLE_OUTPUTDEBUGSTRING

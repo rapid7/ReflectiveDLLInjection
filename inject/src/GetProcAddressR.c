@@ -27,6 +27,10 @@
 //===============================================================================================//
 #include "GetProcAddressR.h"
 //===============================================================================================//
+//
+#define __try
+#define __except if
+//
 // We implement a minimal GetProcAddress to avoid using the native kernel32!GetProcAddress which
 // wont be able to resolve exported addresses in reflectivly loaded librarys.
 FARPROC WINAPI GetProcAddressR( HANDLE hModule, LPCSTR lpProcName )

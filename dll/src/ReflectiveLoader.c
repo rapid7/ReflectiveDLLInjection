@@ -66,6 +66,7 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 	LOADLIBRARYA pLoadLibraryA     = NULL;
 	GETPROCADDRESS pGetProcAddress = NULL;
 	VIRTUALALLOC pVirtualAlloc     = NULL;
+	VIRTUALPROTECT pVirtualProtect = NULL;
 	NTFLUSHINSTRUCTIONCACHE pNtFlushInstructionCache = NULL;
 #ifdef ENABLE_STOPPAGING
 	VIRTUALLOCK pVirtualLock	   = NULL;
@@ -92,6 +93,7 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 	ULONG_PTR uiValueC;
 	ULONG_PTR uiValueD;
 	ULONG_PTR uiValueE;
+	DWORD dwProtect;
 
 	// STEP 0: calculate our images current base address
 
@@ -180,7 +182,7 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 			// get the VA for the array of name ordinals
 			uiNameOrdinals = ( uiBaseAddress + ((PIMAGE_EXPORT_DIRECTORY )uiExportDir)->AddressOfNameOrdinals );
 
-			usCounter = 3;
+			usCounter = 4;
 #ifdef ENABLE_STOPPAGING
 			usCounter++;
 #endif
@@ -195,6 +197,7 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 				if( dwHashValue == LOADLIBRARYA_HASH
 					|| dwHashValue == GETPROCADDRESS_HASH
 					|| dwHashValue == VIRTUALALLOC_HASH
+					|| dwHashValue == VIRTUALPROTECT_HASH
 #ifdef ENABLE_STOPPAGING
 					|| dwHashValue == VIRTUALLOCK_HASH
 #endif
@@ -213,6 +216,8 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 						pGetProcAddress = (GETPROCADDRESS)( uiBaseAddress + DEREF_32( uiAddressArray ) );
 					else if( dwHashValue == VIRTUALALLOC_HASH )
 						pVirtualAlloc = (VIRTUALALLOC)( uiBaseAddress + DEREF_32( uiAddressArray ) );
+					else if( dwHashValue == VIRTUALPROTECT_HASH )
+						pVirtualProtect = (VIRTUALPROTECT)( uiBaseAddress + DEREF_32( uiAddressArray ) );
 #ifdef ENABLE_STOPPAGING
 					else if( dwHashValue == VIRTUALLOCK_HASH )
 						pVirtualLock = (VIRTUALLOCK)( uiBaseAddress + DEREF_32( uiAddressArray ) );
@@ -303,8 +308,8 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 	uiHeaderValue = uiLibraryAddress + ((PIMAGE_DOS_HEADER)uiLibraryAddress)->e_lfanew;
 
 	// allocate all the memory for the DLL to be loaded into. we can load at any address because we will
-	// relocate the image. Also zeros all memory and marks it as READ, WRITE and EXECUTE to avoid any problems.
-	uiBaseAddress = (ULONG_PTR)pVirtualAlloc( NULL, ((PIMAGE_NT_HEADERS)uiHeaderValue)->OptionalHeader.SizeOfImage, MEM_RESERVE|MEM_COMMIT, PAGE_EXECUTE_READWRITE );
+	// relocate the image. Also zeros all memory and marks it as READ and WRITE to avoid any problems.
+	uiBaseAddress = (ULONG_PTR)pVirtualAlloc( NULL, ((PIMAGE_NT_HEADERS)uiHeaderValue)->OptionalHeader.SizeOfImage, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
 
 #ifdef ENABLE_STOPPAGING
 	// prevent our image from being swapped to the pagefile
@@ -324,7 +329,7 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 	// uiValueA = the VA of the first section
 	uiValueA = ( (ULONG_PTR)&((PIMAGE_NT_HEADERS)uiHeaderValue)->OptionalHeader + ((PIMAGE_NT_HEADERS)uiHeaderValue)->FileHeader.SizeOfOptionalHeader );
 
-	// itterate through all sections, loading them into memory.
+	// iterate through all sections, loading them into memory.
 	uiValueE = ((PIMAGE_NT_HEADERS)uiHeaderValue)->FileHeader.NumberOfSections;
 	while( uiValueE-- )
 	{
@@ -499,6 +504,50 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 			uiValueC = uiValueC + ((PIMAGE_BASE_RELOCATION)uiValueC)->SizeOfBlock;
 		}
 	}
+
+	// iterate through all sections, applying protections
+	uiValueA = ( (ULONG_PTR)&((PIMAGE_NT_HEADERS)uiHeaderValue)->OptionalHeader + ((PIMAGE_NT_HEADERS)uiHeaderValue)->FileHeader.SizeOfOptionalHeader );
+
+	uiValueE = ((PIMAGE_NT_HEADERS)uiHeaderValue)->FileHeader.NumberOfSections;
+
+	while( uiValueE-- )
+	{
+		// uiValueB is the VA for this section
+		uiValueB = ( uiBaseAddress + ((PIMAGE_SECTION_HEADER)uiValueA)->VirtualAddress );
+
+		// get the sections memory protections value
+		dwProtect = 0;
+		if (((PIMAGE_SECTION_HEADER)uiValueA)->Characteristics & IMAGE_SCN_MEM_WRITE) {
+			dwProtect = PAGE_WRITECOPY;
+		}
+		if (((PIMAGE_SECTION_HEADER)uiValueA)->Characteristics & IMAGE_SCN_MEM_READ) {
+			dwProtect = PAGE_READONLY;
+		}
+		if ((((PIMAGE_SECTION_HEADER)uiValueA)->Characteristics & IMAGE_SCN_MEM_WRITE) && (((PIMAGE_SECTION_HEADER)uiValueA)->Characteristics & IMAGE_SCN_MEM_READ)) {
+			dwProtect = PAGE_READWRITE;
+		}
+		if (((PIMAGE_SECTION_HEADER)uiValueA)->Characteristics & IMAGE_SCN_MEM_EXECUTE) {
+			dwProtect = PAGE_EXECUTE;
+		}
+		if ((((PIMAGE_SECTION_HEADER)uiValueA)->Characteristics & IMAGE_SCN_MEM_EXECUTE) && (((PIMAGE_SECTION_HEADER)uiValueA)->Characteristics & IMAGE_SCN_MEM_WRITE)) {
+			dwProtect = PAGE_EXECUTE_WRITECOPY;
+		}
+		if ((((PIMAGE_SECTION_HEADER)uiValueA)->Characteristics & IMAGE_SCN_MEM_EXECUTE) && (((PIMAGE_SECTION_HEADER)uiValueA)->Characteristics & IMAGE_SCN_MEM_READ)) {
+			dwProtect = PAGE_EXECUTE_READ;
+		}
+		if ((((PIMAGE_SECTION_HEADER)uiValueA)->Characteristics & IMAGE_SCN_MEM_EXECUTE) && (((PIMAGE_SECTION_HEADER)uiValueA)->Characteristics & IMAGE_SCN_MEM_WRITE) && (((PIMAGE_SECTION_HEADER)uiValueA)->Characteristics & IMAGE_SCN_MEM_READ)) {
+			dwProtect = PAGE_EXECUTE_READWRITE;
+		}
+
+		uiValueD = ((PIMAGE_SECTION_HEADER)uiValueA)->SizeOfRawData;
+
+		if (uiValueD)
+			pVirtualProtect((LPVOID)uiValueB, uiValueD, dwProtect, &dwProtect);
+
+		// get the VA of the next section
+		uiValueA += sizeof( IMAGE_SECTION_HEADER );
+	}
+
 
 	// STEP 6: call our images entry point
 

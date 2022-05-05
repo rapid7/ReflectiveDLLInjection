@@ -510,6 +510,8 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 
 	uiValueE = ((PIMAGE_NT_HEADERS)uiHeaderValue)->FileHeader.NumberOfSections;
 
+	// Characteristics processing courtesy of Dark Vort∑x, 2021-06-01
+	// see: https://bruteratel.com/research/feature-update/2021/06/01/PE-Reflection-Long-Live-The-King/
 	while( uiValueE-- )
 	{
 		// uiValueB is the VA for this section

@@ -222,6 +222,7 @@ HANDLE WINAPI LoadRemoteLibraryR( HANDLE hProcess, LPVOID lpBuffer, DWORD dwLeng
 	HANDLE hThread                            = NULL;
 	DWORD dwReflectiveLoaderOffset            = 0;
 	DWORD dwThreadId                          = 0;
+	DWORD dwOldProt;
 
 	__try
 	{
@@ -245,7 +246,7 @@ HANDLE WINAPI LoadRemoteLibraryR( HANDLE hProcess, LPVOID lpBuffer, DWORD dwLeng
 				break;
 
 			// change the permissions to (RX) to bypass W^X protections
-			if (!VirtualProtectEx(hProcess, lpRemoteLibraryBuffer, dwLength, PAGE_EXECUTE_READ, NULL))
+			if (!VirtualProtectEx(hProcess, lpRemoteLibraryBuffer, dwLength, PAGE_EXECUTE_READ, &dwOldProt))
 				break;
 
 			// add the offset to ReflectiveLoader() to the remote library address...

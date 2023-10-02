@@ -22,13 +22,13 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\GetProcAddressR.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="src\LoadLibraryR.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\common\ReflectiveDLLInjection.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\GetProcAddressR.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

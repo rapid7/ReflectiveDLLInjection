@@ -35,7 +35,7 @@
 #pragma comment(lib,"Advapi32.lib")
 #endif
 
-#define BREAK_WITH_ERROR( e ) { printf( "[-] %s. Error=%d", e, GetLastError() ); break; }
+#define BREAK_WITH_ERROR( e ) { printf( "[-] %s. Error=%ld", e, GetLastError() ); break; }
 
 // Simple app to inject a reflective DLL into a process vis its process ID.
 int main( int argc, char * argv[] )
@@ -53,12 +53,13 @@ int main( int argc, char * argv[] )
 #ifdef _WIN64
 	char * cpDllFile  = "reflective_dll.x64.dll";
 #else
-#ifdef WIN_X86
-	char * cpDllFile  = "reflective_dll.dll";
+#ifdef WIN32
+	char * cpDllFile  = "reflective_dll.Win32.dll";
 #else WIN_ARM
 	char * cpDllFile  = "reflective_dll.arm.dll";
 #endif
 #endif
+
 
 	do
 	{
@@ -107,9 +108,9 @@ int main( int argc, char * argv[] )
 		if( !hModule )
 			BREAK_WITH_ERROR( "Failed to inject the DLL" );
 
-		printf( "[+] Injected the '%s' DLL into process %d.", cpDllFile, dwProcessId );
+		printf( "[+] Injected the '%s' DLL into process %ld.\n", cpDllFile, dwProcessId );
 		
-		WaitForSingleObject( hModule, -1 );
+		WaitForSingleObject( hModule, (DWORD) -1 );
 
 	} while( 0 );
 	

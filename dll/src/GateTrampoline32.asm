@@ -8,7 +8,7 @@ DoSyscall PROC
 
   mov eax, [esp+0Ch]               ; get the pointer to Syscall
   mov eax, [eax+8]                 ; get the number of arguments
-  lea eax, [4*eax]                 ; calculate the nukber of bytes needed to store the arguments
+  lea eax, [4*eax]                 ; calculate the number of bytes needed to store the arguments
   sub esp, eax                     ; make room on the stack for the arguments
 
   push edi                         ; store edi on stack to be able to restore it later

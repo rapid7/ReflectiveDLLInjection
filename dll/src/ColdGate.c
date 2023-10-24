@@ -50,7 +50,7 @@ NTSTATUS msfNtFreeVirtualMemory(Syscall* pSyscall, HANDLE hProcess, PVOID* pBase
 
 //
 // Wrapper functions used to force a call to the system function even if it is hooked. These are used during the unhooking process.
-// If the correcponding syscall is hooked, the hooked function will be called directly. We cannot do anything about it.
+// If the corresponding syscall is hooked, the hooked function will be called directly. We cannot do anything about it.
 // Otherwise, it calls the direct syscall function.
 //
 NTSTATUS NtAllocateVirtualMemoryWrapper(Syscall* pSyscall, HANDLE hProcess, PVOID* pBaseAddress, ULONG_PTR pZeroBits, PSIZE_T pRegionSize, ULONG ulAllocationType, ULONG ulProtect) {
@@ -218,7 +218,6 @@ BOOL findTextSection(PVOID pNtdllBase, DWORD * pSectionRVA, SIZE_T * cbSectionSi
 			*pSectionRVA = sectionHeader->VirtualAddress;
 			*cbSectionSize = sectionHeader->Misc.VirtualSize;
 			return TRUE;
-			break;
 		}
 	}
 
@@ -267,6 +266,7 @@ BOOL findModules(PVOID *pNtdllBase, PVOID *pKernel32) {
 	pModuleEntry = pModuleStart = (PLDR_DATA_TABLE_ENTRY)pLdrData->InMemoryOrderModuleList.Flink;
 
 	*pNtdllBase = NULL;
+	*pKernel32 = NULL;
 	do {
 
 		pDllName = &pModuleEntry->BaseDllName;
@@ -305,13 +305,10 @@ BOOL getExePath(UtilityFunctions* pUtilityFunctions, PCHAR szPath, PCHAR szExe, 
 	if (pUtilityFunctions == NULL || pUtilityFunctions->pGetSystemDirectoryA == NULL || szPath == NULL || szExe == NULL || usPathSize == 0)
 		return FALSE;
 
-	// The first call to GetSystemDirectoryA() will return the size needed to store the path, including the NULL terminator.
-	uSize = pUtilityFunctions->pGetSystemDirectoryA(szPath, 0);
-	if (uSize == 0 || uSize > usPathSize)
-		return FALSE;
-	// The second call will get the system path. Note that it returns the number of characters without the NULL terminator.
+	// This will return 0 if it fails.
+	// If the size needed to store the path is greater than the buffer size (usPathSize), we cannot continue.
 	uSize = pUtilityFunctions->pGetSystemDirectoryA(szPath, usPathSize);
-	if (uSize == 0)
+	if (uSize == 0 || uSize > usPathSize)
 		return FALSE;
 	usPathSize -= uSize;
 	pDst = szPath + uSize;
@@ -331,17 +328,17 @@ BOOL getExePath(UtilityFunctions* pUtilityFunctions, PCHAR szPath, PCHAR szExe, 
 }
 
 //
-// Retrieve the syscall data for every functions in Syscalls and UilitySyscalls arrays of Syscall structures.
+// Retrieve the syscall data for every functions in Syscalls and UtilitySyscalls arrays of Syscall structures.
 // It goes through ntdll exports and compare the hash of the function names with the hash contained in the structures.
 // For each matching hash, it extract the syscall data and store it in the structure.
 //
-BOOL getSyscallsFromNtdll(PVOID pNtdllBase, Syscall Syscalls[], DWORD dwSyscallSize, Syscall UilitySyscalls[], DWORD dwUilitySyscallSize) {
+BOOL getSyscallsFromNtdll(PVOID pNtdllBase, Syscall Syscalls[], DWORD dwSyscallSize, Syscall UtilitySyscalls[], DWORD dwUtilitySyscallsize) {
 	PIMAGE_DOS_HEADER pDosHdr = NULL;
 	PIMAGE_NT_HEADERS pNtHdrs = NULL;
 	PIMAGE_EXPORT_DIRECTORY pExportDir = NULL;
 	PDWORD pdwAddrOfNames = NULL, pdwAddrOfFunctions = NULL;
 	PWORD pwAddrOfNameOrdinales = NULL;
-	DWORD dwHashFunctionName = 0, dwIdxfName = 0, dwIdxSyscall = 0;
+	DWORD dwHashFunctionName = 0, dwIdxfName = 0, dwIdxSyscall = 0, dwCryptedHash = 0, dwUtilitySyscallsIdx = 0;
 	PVOID pStub = NULL;
 
 	pDosHdr = (PIMAGE_DOS_HEADER)pNtdllBase;
@@ -353,7 +350,7 @@ BOOL getSyscallsFromNtdll(PVOID pNtdllBase, Syscall Syscalls[], DWORD dwSyscallS
 	pwAddrOfNameOrdinales = (PWORD)((PBYTE)pNtdllBase + pExportDir->AddressOfNameOrdinals);
 
 	// Total number of functions needed to process
-	DWORD dwCounter = dwSyscallSize + dwUilitySyscallSize;
+	DWORD dwCounter = dwSyscallSize + dwUtilitySyscallsize;
 
 	for (dwIdxfName = 0; dwIdxfName < pExportDir->NumberOfNames; dwIdxfName++) {
 		dwHashFunctionName = _hash((PCHAR)((PBYTE)pNtdllBase + pdwAddrOfNames[dwIdxfName]));
@@ -367,7 +364,7 @@ BOOL getSyscallsFromNtdll(PVOID pNtdllBase, Syscall Syscalls[], DWORD dwSyscallS
 
 				if (Syscalls[dwIdxSyscall].hooked) {
 					// Temporarly store the index to the function name in dwSyscallNr.
-					// This will be processed when calling UnhookSyscalls().
+					// This will be processed when calling GetHookedSyscallNumbers().
 					Syscalls[dwIdxSyscall].dwSyscallNr = dwIdxfName;
 				}
 
@@ -381,57 +378,46 @@ BOOL getSyscallsFromNtdll(PVOID pNtdllBase, Syscall Syscalls[], DWORD dwSyscallS
 		// If we don't have it, call ExtractSysCallData() to extract the data from ntdll.
 		switch (dwHashFunctionName) {
 		case NTALLOCATEVIRTUALMEMORY_HASH:
-			if (dwIdxSyscall < dwSyscallSize && Syscalls[dwIdxSyscall].dwCryptedHash == NTALLOCATEVIRTUALMEMORY_HASH) {
-				UilitySyscalls[NTALLOCATEVIRTUALMEMORY_SYSCALL] = Syscalls[dwIdxSyscall];
-			}
-			else {
-				if (!ExtractSysCallData(pStub, &UilitySyscalls[NTALLOCATEVIRTUALMEMORY_SYSCALL]))
-					return FALSE;
-			}
+			dwCryptedHash = NTALLOCATEVIRTUALMEMORY_HASH;
+			dwUtilitySyscallsIdx = NTALLOCATEVIRTUALMEMORY_SYSCALL;
+			--dwCounter;
 			break;
 		case NTREADVIRTUALMEMORY_HASH:
-			if (dwIdxSyscall < dwSyscallSize && Syscalls[dwIdxSyscall].dwCryptedHash == NTREADVIRTUALMEMORY_HASH) {
-				UilitySyscalls[NTREADVIRTUALMEMORY_SYSCALL] = Syscalls[dwIdxSyscall];
-			}
-			else {
-				if (!ExtractSysCallData(pStub, &UilitySyscalls[NTREADVIRTUALMEMORY_SYSCALL]))
-					return FALSE;
-			}
+			dwCryptedHash = NTREADVIRTUALMEMORY_HASH;
+			dwUtilitySyscallsIdx = NTREADVIRTUALMEMORY_SYSCALL;
 			--dwCounter;
 			break;
 		case NTCLOSE_HASH:
-			if (dwIdxSyscall < dwSyscallSize && Syscalls[dwIdxSyscall].dwCryptedHash == NTCLOSE_HASH) {
-				UilitySyscalls[NTCLOSE_SYSCALL] = Syscalls[dwIdxSyscall];
-			}
-			else {
-				if (!ExtractSysCallData(pStub, &UilitySyscalls[NTCLOSE_SYSCALL]))
-					return FALSE;
-			}
+			dwCryptedHash = NTCLOSE_HASH;
+			dwUtilitySyscallsIdx = NTCLOSE_SYSCALL;
 			--dwCounter;
 			break;
 		case NTTERMINATEPROCESS_HASH:
-			if (dwIdxSyscall < dwSyscallSize && Syscalls[dwIdxSyscall].dwCryptedHash == NTTERMINATEPROCESS_HASH) {
-				UilitySyscalls[NTTERMINATEPROCESS_SYSCALL] = Syscalls[dwIdxSyscall];
-			}
-			else {
-				if (!ExtractSysCallData(pStub, &UilitySyscalls[NTTERMINATEPROCESS_SYSCALL]))
-					return FALSE;
-			}
+			dwCryptedHash = NTTERMINATEPROCESS_HASH;
+			dwUtilitySyscallsIdx = NTTERMINATEPROCESS_SYSCALL;
 			--dwCounter;
 			break;
 		case NTFREEVIRTUALMEMORY_HASH:
-			if (dwIdxSyscall < dwSyscallSize && Syscalls[dwIdxSyscall].dwCryptedHash == NTFREEVIRTUALMEMORY_HASH) {
-				UilitySyscalls[NTFREEVIRTUALMEMORY_SYSCALL] = Syscalls[dwIdxSyscall];
-			}
-			else {
-				if (!ExtractSysCallData(pStub, &UilitySyscalls[NTFREEVIRTUALMEMORY_SYSCALL]))
-					return FALSE;
-			}
+			dwCryptedHash = NTFREEVIRTUALMEMORY_HASH;
+			dwUtilitySyscallsIdx = NTFREEVIRTUALMEMORY_SYSCALL;
 			--dwCounter;
+		}
+
+		if (dwCryptedHash == 0)
+			continue;
+
+		if (dwIdxSyscall < dwSyscallSize && Syscalls[dwIdxSyscall].dwCryptedHash == dwCryptedHash) {
+			UtilitySyscalls[dwUtilitySyscallsIdx] = Syscalls[dwIdxSyscall];
+		}
+		else {
+			if (!ExtractSysCallData(pStub, &UtilitySyscalls[dwUtilitySyscallsIdx]))
+				return FALSE;
 		}
 
 		if (dwCounter == 0)
 			break;
+
+		dwCryptedHash = 0;
 	}
 
 	// Last check to make sure we have everything we need
@@ -439,8 +425,8 @@ BOOL getSyscallsFromNtdll(PVOID pNtdllBase, Syscall Syscalls[], DWORD dwSyscallS
 		if (Syscalls[dwIdxSyscall].pColdGate == NULL)
 			return FALSE;
 	}
-	for (dwIdxSyscall = 0; dwIdxSyscall < dwUilitySyscallSize; ++dwIdxSyscall) {
-		if (UilitySyscalls[dwIdxSyscall].pColdGate == NULL)
+	for (dwIdxSyscall = 0; dwIdxSyscall < dwUtilitySyscallsize; ++dwIdxSyscall) {
+		if (UtilitySyscalls[dwIdxSyscall].pColdGate == NULL)
 			return FALSE;
 	}
 
@@ -450,7 +436,7 @@ BOOL getSyscallsFromNtdll(PVOID pNtdllBase, Syscall Syscalls[], DWORD dwSyscallS
 //
 // Get the syscall numbers using the Freeze technnique
 //
-BOOL UnhookSyscalls(PVOID pNtdllBase, UtilityFunctions* pUtilityFunctions, Syscall Syscalls[], DWORD dwSyscallSize, Syscall UtilitySyscalls[], DWORD dwUilitySyscallSize) {
+BOOL GetHookedSyscallNumbers(PVOID pNtdllBase, UtilityFunctions* pUtilityFunctions, Syscall Syscalls[], DWORD dwSyscallSize, Syscall UtilitySyscalls[], DWORD dwUtilitySyscallsize) {
 	BOOL bSuccess = FALSE;
 	CHAR szProc[EXE_PATH_SIZE] = { 0 };
 	CHAR szExe[] = { 'n', 'e', 't', 's', 'h', '.', 'e', 'x', 'e', '\0' };
@@ -468,7 +454,7 @@ BOOL UnhookSyscalls(PVOID pNtdllBase, UtilityFunctions* pUtilityFunctions, Sysca
 	UINT_PTR upOffset = 0;
 
 	// First, make sure we have the function needed to bypass hooking
-	for (dwIdxSyscall = 0; dwIdxSyscall < dwUilitySyscallSize; ++dwIdxSyscall) {
+	for (dwIdxSyscall = 0; dwIdxSyscall < dwUtilitySyscallsize; ++dwIdxSyscall) {
 		if (UtilitySyscalls[dwIdxSyscall].pColdGate == NULL)
 			goto exit;
 	}
@@ -533,9 +519,9 @@ BOOL UnhookSyscalls(PVOID pNtdllBase, UtilityFunctions* pUtilityFunctions, Sysca
 			if (!bSuccess || Syscalls[dwIdxSyscall].hooked)
 				goto exit;
 
-			// Now, the trampolin address (pColdGate) points to an address loacted in the local copy of ntdll.
-			// We need to set it to a trampolin address in the loaded ntdll.
-			// First, get the offset of the trampolin address.
+			// Now, the trampoline address (pColdGate) points to an address located in the local copy of ntdll.
+			// We need to set it to a trampoline address in the loaded ntdll.
+			// First, get the offset of the trampoline address.
 			upOffset = ((PBYTE)Syscalls[dwIdxSyscall].pColdGate - (PBYTE)pStub);
 			// Then, add the offset to get the address in the loaded ntdll
 			Syscalls[dwIdxSyscall].pColdGate = (LPVOID)((PBYTE)pOriginalStub + upOffset);
@@ -653,7 +639,7 @@ BOOL getSyscalls(PVOID pNtdllBase, Syscall Syscalls[], DWORD dwSyscallSize, Util
 
 	// Process hooked functions if any
 	if (hasHooked) {
-		if (!UnhookSyscalls(pNtdllBase, pUtilityFunctions, Syscalls, dwSyscallSize, ColdGateSyscalls, dwColdGateSyscallSize))
+		if (!GetHookedSyscallNumbers(pNtdllBase, pUtilityFunctions, Syscalls, dwSyscallSize, ColdGateSyscalls, dwColdGateSyscallSize))
 			return FALSE;
 	}
 

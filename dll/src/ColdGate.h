@@ -2,6 +2,8 @@
 
 #pragma warning(disable: 5045) // warning C5045: Compiler will insert Spectre mitigation for memory load if /Qspectre switch specified
 #pragma warning(disable: 4820) // warning C4820: X bytes padding added after construct Y
+#pragma warning(disable: 4668) // warning C4820: 'symbol' is not defined as a preprocessor macro, replacing with '0' for 'directives'
+#pragma warning(disable: 4255) // warning C4820: 'function' : no function prototype given: converting '()' to '(void)'
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>

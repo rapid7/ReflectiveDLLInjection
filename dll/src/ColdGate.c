@@ -1,4 +1,3 @@
-//#include "ReflectiveLoader.h"
 #include "ColdGate.h"
 
 //
@@ -617,13 +616,23 @@ BOOL getKernel32Functions(PVOID pKernel32, UtilityFunctions* pUtilityFunctions) 
 BOOL getSyscalls(PVOID pNtdllBase, Syscall Syscalls[], DWORD dwSyscallSize, UtilityFunctions* pUtilityFunctions) {
 	BOOL hasHooked = FALSE;
 
-	Syscall ColdGateSyscalls[] = {
-		{.dwCryptedHash = NTALLOCATEVIRTUALMEMORY_HASH, .dwNumberOfArgs = 6, .hooked = FALSE},
-		{.dwCryptedHash = NTREADVIRTUALMEMORY_HASH, .dwNumberOfArgs = 5, .hooked = FALSE},
-		{.dwCryptedHash = NTCLOSE_HASH, .dwNumberOfArgs = 1, .hooked = FALSE},
-		{.dwCryptedHash = NTTERMINATEPROCESS_HASH, .dwNumberOfArgs = 2, .hooked = FALSE},
-		{.dwCryptedHash = NTFREEVIRTUALMEMORY_HASH, .dwNumberOfArgs = 4, .hooked = FALSE}
-	};
+	Syscall ColdGateSyscalls[5];
+	ColdGateSyscalls[0].dwCryptedHash = NTALLOCATEVIRTUALMEMORY_HASH;
+	ColdGateSyscalls[0].dwNumberOfArgs = 6;
+	ColdGateSyscalls[0].hooked = FALSE;
+	ColdGateSyscalls[1].dwCryptedHash = NTREADVIRTUALMEMORY_HASH;
+	ColdGateSyscalls[1].dwNumberOfArgs = 5;
+	ColdGateSyscalls[1].hooked = FALSE;
+	ColdGateSyscalls[2].dwCryptedHash = NTCLOSE_HASH;
+	ColdGateSyscalls[2].dwNumberOfArgs = 1;
+	ColdGateSyscalls[2].hooked = FALSE;
+	ColdGateSyscalls[3].dwCryptedHash = NTTERMINATEPROCESS_HASH;
+	ColdGateSyscalls[3].dwNumberOfArgs = 2;
+	ColdGateSyscalls[3].hooked = FALSE;
+	ColdGateSyscalls[4].dwCryptedHash = NTFREEVIRTUALMEMORY_HASH;
+	ColdGateSyscalls[4].dwNumberOfArgs = 4;
+	ColdGateSyscalls[4].hooked = FALSE;
+
 	DWORD dwColdGateSyscallSize  = sizeof(ColdGateSyscalls) / sizeof(ColdGateSyscalls[0]);
 
 	if (!getSyscallsFromNtdll(pNtdllBase, Syscalls, dwSyscallSize, ColdGateSyscalls, dwColdGateSyscallSize))

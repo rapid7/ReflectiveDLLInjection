@@ -32,6 +32,10 @@
 #define _REFLECTIVEDLLINJECTION_REFLECTIVELOADER_H
 //===============================================================================================//
 #define WIN32_LEAN_AND_MEAN
+
+#pragma warning(disable: 4668) // warning C4820: 'symbol' is not defined as a preprocessor macro, replacing with '0' for 'directives'
+#pragma warning(disable: 4255) // warning C4820: 'function' : no function prototype given: converting '()' to '(void)'
+
 #include <windows.h>
 #include <winsock2.h>
 #include <intrin.h>
@@ -41,11 +45,6 @@
 
 // Enable this define to turn on locking of memory to prevent paging
 #define ENABLE_STOPPAGING
-
-// TODO: These doesn't seem to be used anywhere, remove?
-#define EXITFUNC_SEH      0xEA320EFE
-#define EXITFUNC_THREAD   0x0A2A1DE0
-#define EXITFUNC_PROCESS  0x56A2B5F0
 
 #ifdef ENABLE_STOPPAGING
 typedef LPVOID(WINAPI* NTLOCKVIRTUALMEMORY)(HANDLE, PVOID*, PSIZE_T, ULONG);

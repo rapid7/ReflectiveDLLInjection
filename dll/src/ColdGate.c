@@ -103,7 +103,6 @@ BOOL ExtractSysCallData(PVOID pStub, Syscall *pSyscall) {
 		pbCurrentByte = (PBYTE)pStub + cIdxStub;
 
 
-		//if (*pbCurrentByte == 0xe9 || ((pSyscall->dwCryptedHash == NTFLUSHINSTRUCTIONCACHE_HASH || pSyscall->dwCryptedHash == NTTERMINATEPROCESS_HASH) && !pSyscall->hooked)) { // Simulate hooking for testing
 		if (*pbCurrentByte == 0xe9) {
 			// This syscall stub is hooked
 			// Temporarly store the hooked syscall stub in pColdGate to be used later.

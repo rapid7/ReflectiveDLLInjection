@@ -132,7 +132,7 @@ BOOL ExtractSysCallData(PVOID pStub, Syscall *pSyscall) {
 				break;
 			}
 
-			// On Windows 7 SP1 (x64) and Windows Server 2012 (x64):
+			// On Windows 7 SP1 (x64), Windows Server 2012 (x64), Windows Vista (x64) and Windows XP (x64):
 			// 0F 05                        syscall
 			// C3                           retn
 			if (*(PUINT16)(pbCurrentByte + 8) == 0x050f && *(pbCurrentByte + 10) == 0xc3) {
@@ -153,7 +153,7 @@ BOOL ExtractSysCallData(PVOID pStub, Syscall *pSyscall) {
 				// C2 10 00                     retn    10h
 				*(pbCurrentByte + 5) == 0xba && *(PUINT16)(pbCurrentByte + 10) == 0xd2ff && *(pbCurrentByte + 12) == 0xc2 ||
 
-				// Windows 7 SP1 (x86)
+				// Windows 7 SP1 (x86), Windows Vista (x86) and Windows XP (x86):
 				*(pbCurrentByte + 5) == 0xba && *(PUINT16)(pbCurrentByte + 10) == 0x12ff && *(pbCurrentByte + 12) == 0xc2 ||
 
 				// On Windows 7 SP1 WoW64 (x64), it has two variants. So, let's ignore the first instruction and match the remaining bytes.

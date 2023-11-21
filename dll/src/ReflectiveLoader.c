@@ -55,10 +55,12 @@ __declspec(noinline) ULONG_PTR caller( VOID ) { return (ULONG_PTR)WIN_GET_CALLER
 #define RDIDLLEXPORT DLLEXPORT
 #endif
 
-// When initializing an array using `{0}`, the compiler replaces this statement with the compiler intrinsic function memset to zero out the memory.
+// When initializing an array using `{0}`, the Windows compiler replaces this statement with the compiler intrinsic function memset to zero out the memory.
 // This is fine in a normal context, but here, it fails with an Access Violation since the compiler intrinsic function contains pointers to undefined memory locations.
 // The reason is because this custom loader lives in a local memory space, any addresses pointing to anything outside of the ".text" section will be wrong.
 // Forcing the use of a non-intrinsic custom version of memset seems to fix this.
+// Note that this doesn' t occur with Mingw and needs to be disabled.
+#ifndef __MINGW32__
 #pragma function(memset)
 void* __cdecl memset(void* s, int c, size_t n)
 {
@@ -67,6 +69,7 @@ void* __cdecl memset(void* s, int c, size_t n)
 		*buf++ = (BYTE)c;
 	return s;
 }
+#endif
 
 // This is our position independent reflective DLL loader/injector
 #ifdef REFLECTIVEDLLINJECTION_VIA_LOADREMOTELIBRARYR
@@ -166,7 +169,6 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 
 	if (rdiNtAllocateVirtualMemory(&NtAllocateVirtualMemorySyscall, (HANDLE)-1, (PVOID*)&uiBaseAddress, (ULONG_PTR)0, &RegionSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE) != 0)
 		return 0;
-
 
 #ifdef ENABLE_STOPPAGING
 	// prevent our image from being swapped to the pagefile

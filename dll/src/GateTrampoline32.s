@@ -5,7 +5,7 @@
     .text
 _DoSyscall:
 
-  mov eax, [esp+0x0C]              # get the pointer to Syscall
+  mov eax, [esp+0x14]              # get the pointer to Syscall
   mov eax, [eax+4]                 # get the number of arguments
   lea eax, [4*eax]                 # calculate the number of bytes needed to store the arguments
   sub esp, eax                     # make room on the stack for the arguments
@@ -15,7 +15,7 @@ _DoSyscall:
   push ecx                         # store ecx on stack to be able to restore it later
 
   mov edi, [esp+0x0C+eax]          # save the return address
-  mov ebx, [esp+0x18+eax]          # get the pointer to the Syscall structure
+  mov ebx, [esp+0x20+eax]          # get the pointer to the Syscall structure
   mov ecx, [ebx+4]                 # get the number of arguments (.dwNumberOfArgs)
 
   mov [esp+0x0C], edi              # place the return address on the stack
@@ -26,7 +26,7 @@ _DoSyscall:
   lea edi, [esp+0x0C+4*ecx]        # set the base pointer that will be used in loop
 
 _loop:
-  mov edx, [edi+0x10+4*eax]        # get the argument
+  mov edx, [edi+0x18+4*eax]        # get the argument
   mov [esp+0x10+4*eax], edx        # store it to the correct location
   inc eax                          # increment the index
   cmp eax, ecx                     # check if we have more arguments to process

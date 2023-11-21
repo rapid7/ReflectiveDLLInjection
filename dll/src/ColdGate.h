@@ -7,7 +7,7 @@
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
-
+#include <intrin.h>
 
 #ifdef _WIN64
 #define SYS_STUB_SIZE 32

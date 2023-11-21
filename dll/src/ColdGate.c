@@ -1,16 +1,21 @@
 #include "ColdGate.h"
 
+// Note that compiler optimizations need to be disabled for SyscallStub() and all the rdi...() API functions
+// to make sure the stack is setup in a way that can be handle by DoSyscall() assembly code.
+#pragma optimize( "g", off )
+#ifdef __MINGW32__
+#pragma GCC push_options
+#pragma GCC optimize ("O0")
+#endif
+
 //
 // Main stub that is called by all the native API functions
 //
-#pragma optimize( "g", off )
 #pragma warning(disable: 4100) // warning C4100: unreferenced formal parameter
 NTSTATUS SyscallStub(Syscall* pSyscall, ...) {
 	return DoSyscall();
 }
 #pragma warning(default: 4100)
-#pragma optimize( "g", on )
-
 
 //
 // Native API functions
@@ -46,6 +51,10 @@ NTSTATUS rdiNtTerminateProcess(Syscall* pSyscall, HANDLE hProcess, NTSTATUS ntEx
 NTSTATUS rdiNtFreeVirtualMemory(Syscall* pSyscall, HANDLE hProcess, PVOID* pBaseAddress, PSIZE_T pRegionSize, ULONG uFreeType) {
 	return SyscallStub(pSyscall, hProcess, pBaseAddress, pRegionSize, uFreeType);
 }
+#ifdef __MINGW32__
+#pragma GCC pop_options
+#endif
+#pragma optimize( "g", on )
 
 //
 // Wrapper functions used to force a call to the system function even if it is hooked. These are used during the unhooking process.
@@ -495,15 +504,11 @@ BOOL GetHookedSyscallNumbers(PVOID pNtdllBase, UtilityFunctions* pUtilityFunctio
 
 	// Now, we just need to allocate some memory space locally and copy the ntdll.dll section form the created process.
 	RegionSize = cbSectionSize;
-	if (NtAllocateVirtualMemoryWrapper(strUtilitySyscalls->NtAllocateVirtualMemorySyscall, (HANDLE)-1, &pLocalSection, (ULONG_PTR)0, &RegionSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE) != 0) {
-		__debugbreak();
+	if (NtAllocateVirtualMemoryWrapper(strUtilitySyscalls->NtAllocateVirtualMemorySyscall, (HANDLE)-1, &pLocalSection, (ULONG_PTR)0, &RegionSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE) != 0)
 		goto exit;
-	}
 
-	if (NtReadVirtualMemoryWrapper(strUtilitySyscalls->NtReadVirtualMemorySyscall, pi.hProcess, (PVOID)((PBYTE)pNtdllBase + dwTextSectionVA), pLocalSection, cbSectionSize, NULL) != 0) {
-		__debugbreak();
+	if (NtReadVirtualMemoryWrapper(strUtilitySyscalls->NtReadVirtualMemorySyscall, pi.hProcess, (PVOID)((PBYTE)pNtdllBase + dwTextSectionVA), pLocalSection, cbSectionSize, NULL) != 0)
 		goto exit;
-	}
 
 	// Finally, we just go through the same process of getting syscall data, but this time from the copy of the unhooked ntdll.dll that comes from the created process.
 	pDosHdr = (PIMAGE_DOS_HEADER)pNtdllBase;
@@ -541,25 +546,17 @@ BOOL GetHookedSyscallNumbers(PVOID pNtdllBase, UtilityFunctions* pUtilityFunctio
 
 exit:
 	if (pi.hProcess) {
-		if (NtTerminateProcessWrapper(strUtilitySyscalls->NtTerminateProcessSyscall, pi.hProcess, (NTSTATUS)0) != 0) {
-			__debugbreak();
-		}
-		if (NtCloseWrapper(strUtilitySyscalls->NtCloseSyscall, pi.hProcess) != 0) {
-			__debugbreak();
-		}
+		NtTerminateProcessWrapper(strUtilitySyscalls->NtTerminateProcessSyscall, pi.hProcess, (NTSTATUS)0);
+		NtCloseWrapper(strUtilitySyscalls->NtCloseSyscall, pi.hProcess);
 	}
 
 	if (pi.hThread) {
-		if (NtCloseWrapper(strUtilitySyscalls->NtCloseSyscall, pi.hThread) != 0) {
-			__debugbreak();
-		}
+		NtCloseWrapper(strUtilitySyscalls->NtCloseSyscall, pi.hThread);
 	}
 
 	if (pLocalSection) {
 		RegionSize = 0;
-		if (NtFreeVirtualMemoryWrapper(strUtilitySyscalls->NtFreeVirtualMemorySyscall, (HANDLE)-1, &pLocalSection, &RegionSize, MEM_RELEASE) != 0) {
-			__debugbreak();
-		}
+		NtFreeVirtualMemoryWrapper(strUtilitySyscalls->NtFreeVirtualMemorySyscall, (HANDLE)-1, &pLocalSection, &RegionSize, MEM_RELEASE);
 		pLocalSection = NULL;
 	}
 

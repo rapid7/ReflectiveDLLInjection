@@ -7,7 +7,7 @@ OPTION LANGUAGE: C
 DoSyscall PROC
 
   mov eax, [esp+0Ch]               ; get the pointer to Syscall
-  mov eax, [eax+8]                 ; get the number of arguments
+  mov eax, [eax+4]                 ; get the number of arguments
   lea eax, [4*eax]                 ; calculate the number of bytes needed to store the arguments
   sub esp, eax                     ; make room on the stack for the arguments
 
@@ -17,7 +17,7 @@ DoSyscall PROC
 
   mov edi, [esp+0Ch+eax]           ; save the return address
   mov ebx, [esp+18h+eax]           ; get the pointer to the Syscall structure
-  mov ecx, [ebx+8]                 ; get the number of arguments (.dwNumberOfArgs)
+  mov ecx, [ebx+4]                 ; get the number of arguments (.dwNumberOfArgs)
 
   mov [esp+0Ch], edi               ; place the return address on the stack
 
@@ -41,7 +41,7 @@ _end:
   pop edi                          ; restore edi
 
   push [eax+10h]                   ; push the syscall stub on the stack
-  mov eax, [eax+4]                 ; store the syscall number to eax
+  mov eax, [eax+8]                 ; store the syscall number to eax
   ret                              ; return to the stub
 
 DoSyscall ENDP

@@ -19,7 +19,7 @@ DoSyscall Proc
 
   ; Now, if the syscall needs more than 4 arguments, we need to deal with arguments stored on the stack
   xor r12, r12
-  mov r12d, dword ptr [r11+8]  ; store the number of arguments in r12, which will be our counter
+  mov r12d, dword ptr [r11+4]  ; store the number of arguments in r12, which will be our counter
   cmp r12, 4                   ; we already processed 4 arguments, so, check if we have more
   jle _end                     ; we have less than 4 arguments, jump directly to _end
   sub r12, 4                   ; adjust the argument counter
@@ -35,7 +35,7 @@ _loop:
 _end:
   mov r10, rcx                 ; store the first argument to r10, like the original syscall do
   xor rax, rax                 ; zero out rax
-  mov eax, dword ptr [r11+4]   ; store the syscall number to eax
+  mov eax, dword ptr [r11+8]   ; store the syscall number to eax
 
   mov r13, [rsp-40h]           ; restore r13
   mov r12, [rsp-38h]           ; restore r12

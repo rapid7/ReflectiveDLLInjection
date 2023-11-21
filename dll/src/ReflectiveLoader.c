@@ -101,23 +101,19 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 
 	// The NTDLL exported functions our loader needs. This array of Syscall structures will be completed later.
 #ifdef ENABLE_STOPPAGING
-	Syscall Syscalls[4];
+	Syscall* Syscalls[4];
 #else
-	Syscall Syscalls[3];
+	Syscall* Syscalls[3];
 #endif
-	Syscalls[0].dwCryptedHash = NTALLOCATEVIRTUALMEMORY_HASH;
-	Syscalls[0].dwNumberOfArgs = 6;
-	Syscalls[0].hooked = FALSE;
-	Syscalls[1].dwCryptedHash = NTPROTECTVIRTUALMEMORY_HASH;
-	Syscalls[1].dwNumberOfArgs = 5;
-	Syscalls[1].hooked = FALSE;
-	Syscalls[2].dwCryptedHash = NTFLUSHINSTRUCTIONCACHE_HASH;
-	Syscalls[2].dwNumberOfArgs = 3;
-	Syscalls[2].hooked = FALSE;
+	Syscall NtAllocateVirtualMemorySyscall = { NTALLOCATEVIRTUALMEMORY_HASH, 6 };
+	Syscalls[0] = &NtAllocateVirtualMemorySyscall;
+	Syscall NtProtectVirtualMemorySyscall = { NTPROTECTVIRTUALMEMORY_HASH, 5 };
+	Syscalls[1] = &NtProtectVirtualMemorySyscall;
+	Syscall NtFlushInstructionCacheSyscall = { NTFLUSHINSTRUCTIONCACHE_HASH, 3 };
+	Syscalls[2] = &NtFlushInstructionCacheSyscall;
 #ifdef ENABLE_STOPPAGING
-	Syscalls[3].dwCryptedHash = NTLOCKVIRTUALMEMORY_HASH;
-	Syscalls[3].dwNumberOfArgs = 4;
-	Syscalls[3].hooked = FALSE;
+	Syscall NtLockVirtualMemorySyscall = { NTLOCKVIRTUALMEMORY_HASH, 4 };
+	Syscalls[3] = &NtLockVirtualMemorySyscall;
 #endif
 
 
@@ -168,14 +164,14 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 	SIZE_T RegionSize = ((PIMAGE_NT_HEADERS)uiHeaderValue)->OptionalHeader.SizeOfImage;
 	uiBaseAddress = (ULONG_PTR) NULL;
 
-	if (msfNtAllocateVirtualMemory(&Syscalls[0], (HANDLE)-1, &((PVOID)uiBaseAddress), (ULONG_PTR)0, &RegionSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE) != 0)
+	if (rdiNtAllocateVirtualMemory(&NtAllocateVirtualMemorySyscall, (HANDLE)-1, (PVOID*)&uiBaseAddress, (ULONG_PTR)0, &RegionSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE) != 0)
 		return 0;
 
 
 #ifdef ENABLE_STOPPAGING
 	// prevent our image from being swapped to the pagefile
 	// This fails on Windows Server 2012 with error 0xC00000A1 STATUS_WORKING_SET_QUOTA, but it doesn't seem to be an issue.
-	msfNtLockVirtualMemory(&Syscalls[3], (HANDLE)-1, &((PVOID)uiBaseAddress), &RegionSize, 1); // MapType 1 = MAP_PROCESS
+	rdiNtLockVirtualMemory(&NtLockVirtualMemorySyscall, (HANDLE)-1, (PVOID*)&uiBaseAddress, &RegionSize, 1); // MapType 1 = MAP_PROCESS
 #endif
 
 	// we must now copy over the headers
@@ -185,6 +181,7 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 
 	while( uiValueA-- )
 		*(BYTE *)uiValueC++ = *(BYTE *)uiValueB++;
+
 
 	// STEP 3: load in all of our sections...
 
@@ -211,6 +208,7 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 		// get the VA of the next section
 		uiValueA += sizeof( IMAGE_SECTION_HEADER );
 	}
+
 
 	// STEP 4: process our images import table...
 
@@ -280,6 +278,7 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 		// get the next import
 		uiValueC += sizeof( IMAGE_IMPORT_DESCRIPTOR );
 	}
+
 
 	// STEP 5: process all of our images relocations...
 
@@ -406,7 +405,7 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 		uiValueD = ((PIMAGE_SECTION_HEADER)uiValueA)->SizeOfRawData;
 
 		if (uiValueD)
-			msfNtProtectVirtualMemory(&Syscalls[1], (HANDLE)-1, &((PVOID)uiValueB), &uiValueD, dwProtect, &dwProtect);
+			rdiNtProtectVirtualMemory(&NtProtectVirtualMemorySyscall, (HANDLE)-1, (PVOID*)&uiValueB, &uiValueD, dwProtect, &dwProtect);
 
 		// get the VA of the next section
 		uiValueA += sizeof( IMAGE_SECTION_HEADER );
@@ -419,7 +418,7 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 	uiValueA = ( uiBaseAddress + ((PIMAGE_NT_HEADERS)uiHeaderValue)->OptionalHeader.AddressOfEntryPoint );
 
 	// We must flush the instruction cache to avoid stale code being used which was updated by our relocation processing.
-	msfNtFlushInstructionCache(&Syscalls[2], (HANDLE) -1, NULL, 0);
+	rdiNtFlushInstructionCache(&NtFlushInstructionCacheSyscall, (HANDLE) -1, NULL, 0);
 
 	// call our respective entry point, fudging our hInstance value
 #ifdef REFLECTIVEDLLINJECTION_VIA_LOADREMOTELIBRARYR

@@ -15,35 +15,35 @@ NTSTATUS SyscallStub(Syscall* pSyscall, ...) {
 //
 // Native API functions
 //
-NTSTATUS msfNtAllocateVirtualMemory(Syscall* pSyscall, HANDLE hProcess, PVOID* pBaseAddress, ULONG_PTR pZeroBits, PSIZE_T pRegionSize, ULONG ulAllocationType, ULONG ulProtect) {
+NTSTATUS rdiNtAllocateVirtualMemory(Syscall* pSyscall, HANDLE hProcess, PVOID* pBaseAddress, ULONG_PTR pZeroBits, PSIZE_T pRegionSize, ULONG ulAllocationType, ULONG ulProtect) {
 	return SyscallStub(pSyscall, hProcess, pBaseAddress, pZeroBits, pRegionSize, ulAllocationType, ulProtect);
 }
 
-NTSTATUS msfNtProtectVirtualMemory(Syscall* pSyscall, HANDLE hProcess, PVOID* pBaseAddress, PSIZE_T pNumberOfBytesToProtect, ULONG ulNewAccessProtection, PULONG ulOldAccessProtection) {
+NTSTATUS rdiNtProtectVirtualMemory(Syscall* pSyscall, HANDLE hProcess, PVOID* pBaseAddress, PSIZE_T pNumberOfBytesToProtect, ULONG ulNewAccessProtection, PULONG ulOldAccessProtection) {
 	return SyscallStub(pSyscall, hProcess, pBaseAddress, pNumberOfBytesToProtect, ulNewAccessProtection, ulOldAccessProtection);
 }
 
-NTSTATUS msfNtFlushInstructionCache(Syscall* pSyscall, HANDLE hProcess, PVOID* pBaseAddress, SIZE_T FlushSize) {
+NTSTATUS rdiNtFlushInstructionCache(Syscall* pSyscall, HANDLE hProcess, PVOID* pBaseAddress, SIZE_T FlushSize) {
 	return SyscallStub(pSyscall, hProcess, pBaseAddress, FlushSize);
 }
 
-NTSTATUS msfNtLockVirtualMemory(Syscall* pSyscall, HANDLE hProcess, PVOID* pBaseAddress, PSIZE_T NumberOfBytesToLock, ULONG MapType) {
+NTSTATUS rdiNtLockVirtualMemory(Syscall* pSyscall, HANDLE hProcess, PVOID* pBaseAddress, PSIZE_T NumberOfBytesToLock, ULONG MapType) {
 	return SyscallStub(pSyscall, hProcess, pBaseAddress, NumberOfBytesToLock, MapType);
 }
 
-NTSTATUS msfNtReadVirtualMemory(Syscall* pSyscall, HANDLE hProcess, PVOID pBaseAddress, PVOID pBuffer, SIZE_T NumberOfBytesToRead, PSIZE_T pNumberOfBytesRead) {
+NTSTATUS rdiNtReadVirtualMemory(Syscall* pSyscall, HANDLE hProcess, PVOID pBaseAddress, PVOID pBuffer, SIZE_T NumberOfBytesToRead, PSIZE_T pNumberOfBytesRead) {
 	return SyscallStub(pSyscall, hProcess, pBaseAddress, pBuffer, NumberOfBytesToRead, pNumberOfBytesRead);
 }
 
-NTSTATUS msfNtClose(Syscall* pSyscall, HANDLE hProcess) {
+NTSTATUS rdiNtClose(Syscall* pSyscall, HANDLE hProcess) {
 	return SyscallStub(pSyscall, hProcess);
 }
 
-NTSTATUS msfNtTerminateProcess(Syscall* pSyscall, HANDLE hProcess, NTSTATUS ntExitStatus) {
+NTSTATUS rdiNtTerminateProcess(Syscall* pSyscall, HANDLE hProcess, NTSTATUS ntExitStatus) {
 	return SyscallStub(pSyscall, hProcess, ntExitStatus);
 }
 
-NTSTATUS msfNtFreeVirtualMemory(Syscall* pSyscall, HANDLE hProcess, PVOID* pBaseAddress, PSIZE_T pRegionSize, ULONG uFreeType) {
+NTSTATUS rdiNtFreeVirtualMemory(Syscall* pSyscall, HANDLE hProcess, PVOID* pBaseAddress, PSIZE_T pRegionSize, ULONG uFreeType) {
 	return SyscallStub(pSyscall, hProcess, pBaseAddress, pRegionSize, uFreeType);
 }
 
@@ -56,35 +56,35 @@ NTSTATUS NtAllocateVirtualMemoryWrapper(Syscall* pSyscall, HANDLE hProcess, PVOI
 	if (pSyscall->hooked)
 		return ((NTALLOCATEVIRTUALMEMORY)pSyscall->pColdGate)(hProcess, pBaseAddress, pZeroBits, pRegionSize, ulAllocationType, ulProtect);
 	else
-		return msfNtAllocateVirtualMemory(pSyscall, hProcess, pBaseAddress, pZeroBits, pRegionSize, ulAllocationType, ulProtect);
+		return rdiNtAllocateVirtualMemory(pSyscall, hProcess, pBaseAddress, pZeroBits, pRegionSize, ulAllocationType, ulProtect);
 }
 
 NTSTATUS NtReadVirtualMemoryWrapper(Syscall* pSyscall, HANDLE hProcess, PVOID pBaseAddress, PVOID pBuffer, SIZE_T NumberOfBytesToRead, PSIZE_T pNumberOfBytesRead) {
 	if (pSyscall->hooked)
 		return ((NTREADVIRTUALMEMORY)pSyscall->pColdGate)(hProcess, pBaseAddress, pBuffer, NumberOfBytesToRead, pNumberOfBytesRead);
 	else
-		return msfNtReadVirtualMemory(pSyscall, hProcess, pBaseAddress, pBuffer, NumberOfBytesToRead, pNumberOfBytesRead);
+		return rdiNtReadVirtualMemory(pSyscall, hProcess, pBaseAddress, pBuffer, NumberOfBytesToRead, pNumberOfBytesRead);
 }
 
 NTSTATUS NtCloseWrapper(Syscall* pSyscall, HANDLE hProcess) {
 	if (pSyscall->hooked)
 		return ((NTCLOSE)pSyscall->pColdGate)(hProcess);
 	else
-		return msfNtClose(pSyscall, hProcess);
+		return rdiNtClose(pSyscall, hProcess);
 }
 
 NTSTATUS NtTerminateProcessWrapper(Syscall* pSyscall, HANDLE hProcess, NTSTATUS ntExitStatus) {
 	if (pSyscall->hooked)
 		return ((NTTERMINATEPROCESS)pSyscall->pColdGate)(hProcess, ntExitStatus);
 	else
-		return msfNtTerminateProcess(pSyscall, hProcess, ntExitStatus);
+		return rdiNtTerminateProcess(pSyscall, hProcess, ntExitStatus);
 }
 
 NTSTATUS NtFreeVirtualMemoryWrapper(Syscall* pSyscall, HANDLE hProcess, PVOID* pBaseAddress, PSIZE_T pRegionSize, ULONG uFreeType) {
 	if (pSyscall->hooked)
 		return ((NTFREEVIRTUALMEMORY)pSyscall->pColdGate)(hProcess, pBaseAddress, pRegionSize, uFreeType);
 	else
-		return msfNtFreeVirtualMemory(pSyscall, hProcess, pBaseAddress, pRegionSize, uFreeType);
+		return rdiNtFreeVirtualMemory(pSyscall, hProcess, pBaseAddress, pRegionSize, uFreeType);
 }
 
 
@@ -330,14 +330,15 @@ BOOL getExePath(UtilityFunctions* pUtilityFunctions, PCHAR szPath, PCHAR szExe, 
 // It goes through ntdll exports and compare the hash of the function names with the hash contained in the structures.
 // For each matching hash, it extract the syscall data and store it in the structure.
 //
-BOOL getSyscallsFromNtdll(PVOID pNtdllBase, Syscall Syscalls[], DWORD dwSyscallSize, Syscall UtilitySyscalls[], DWORD dwUtilitySyscallsize) {
+BOOL getSyscallsFromNtdll(PVOID pNtdllBase, Syscall* Syscalls[], DWORD dwSyscallSize, UtilitySyscalls* strUtilitySyscalls) {
 	PIMAGE_DOS_HEADER pDosHdr = NULL;
 	PIMAGE_NT_HEADERS pNtHdrs = NULL;
 	PIMAGE_EXPORT_DIRECTORY pExportDir = NULL;
 	PDWORD pdwAddrOfNames = NULL, pdwAddrOfFunctions = NULL;
 	PWORD pwAddrOfNameOrdinales = NULL;
-	DWORD dwHashFunctionName = 0, dwIdxfName = 0, dwIdxSyscall = 0, dwCryptedHash = 0, dwUtilitySyscallsIdx = 0;
+	DWORD dwHashFunctionName = 0, dwIdxfName = 0, dwIdxSyscall = 0, dwCryptedHash = 0;
 	PVOID pStub = NULL;
+	Syscall* pSyscall = NULL;
 
 	pDosHdr = (PIMAGE_DOS_HEADER)pNtdllBase;
 	pNtHdrs = (PIMAGE_NT_HEADERS)((PBYTE)pNtdllBase + pDosHdr->e_lfanew);
@@ -348,7 +349,7 @@ BOOL getSyscallsFromNtdll(PVOID pNtdllBase, Syscall Syscalls[], DWORD dwSyscallS
 	pwAddrOfNameOrdinales = (PWORD)((PBYTE)pNtdllBase + pExportDir->AddressOfNameOrdinals);
 
 	// Total number of functions needed to process
-	DWORD dwCounter = dwSyscallSize + dwUtilitySyscallsize;
+	DWORD dwCounter = dwSyscallSize + UTILITY_SYSCALLS_SIZE;
 
 	for (dwIdxfName = 0; dwIdxfName < pExportDir->NumberOfNames; dwIdxfName++) {
 		dwHashFunctionName = _hash((PCHAR)((PBYTE)pNtdllBase + pdwAddrOfNames[dwIdxfName]));
@@ -356,14 +357,14 @@ BOOL getSyscallsFromNtdll(PVOID pNtdllBase, Syscall Syscalls[], DWORD dwSyscallS
 
 		// First, process the provided function names
 		for (dwIdxSyscall = 0; dwIdxSyscall < dwSyscallSize; ++dwIdxSyscall) {
-			if (dwHashFunctionName == Syscalls[dwIdxSyscall].dwCryptedHash) {
-				if (!ExtractSysCallData(pStub, &Syscalls[dwIdxSyscall]))
+			if (dwHashFunctionName == Syscalls[dwIdxSyscall]->dwCryptedHash) {
+				if (!ExtractSysCallData(pStub, Syscalls[dwIdxSyscall]))
 					return FALSE;
 
-				if (Syscalls[dwIdxSyscall].hooked) {
+				if (Syscalls[dwIdxSyscall]->hooked) {
 					// Temporarly store the index to the function name in dwSyscallNr.
 					// This will be processed when calling GetHookedSyscallNumbers().
-					Syscalls[dwIdxSyscall].dwSyscallNr = dwIdxfName;
+					Syscalls[dwIdxSyscall]->dwSyscallNr = dwIdxfName;
 				}
 
 				--dwCounter;
@@ -377,38 +378,38 @@ BOOL getSyscallsFromNtdll(PVOID pNtdllBase, Syscall Syscalls[], DWORD dwSyscallS
 		switch (dwHashFunctionName) {
 		case NTALLOCATEVIRTUALMEMORY_HASH:
 			dwCryptedHash = NTALLOCATEVIRTUALMEMORY_HASH;
-			dwUtilitySyscallsIdx = NTALLOCATEVIRTUALMEMORY_SYSCALL;
+			pSyscall = strUtilitySyscalls->NtAllocateVirtualMemorySyscall;
 			--dwCounter;
 			break;
 		case NTREADVIRTUALMEMORY_HASH:
 			dwCryptedHash = NTREADVIRTUALMEMORY_HASH;
-			dwUtilitySyscallsIdx = NTREADVIRTUALMEMORY_SYSCALL;
+			pSyscall = strUtilitySyscalls->NtReadVirtualMemorySyscall;
 			--dwCounter;
 			break;
 		case NTCLOSE_HASH:
 			dwCryptedHash = NTCLOSE_HASH;
-			dwUtilitySyscallsIdx = NTCLOSE_SYSCALL;
+			pSyscall = strUtilitySyscalls->NtCloseSyscall;
 			--dwCounter;
 			break;
 		case NTTERMINATEPROCESS_HASH:
 			dwCryptedHash = NTTERMINATEPROCESS_HASH;
-			dwUtilitySyscallsIdx = NTTERMINATEPROCESS_SYSCALL;
+			pSyscall = strUtilitySyscalls->NtTerminateProcessSyscall;
 			--dwCounter;
 			break;
 		case NTFREEVIRTUALMEMORY_HASH:
 			dwCryptedHash = NTFREEVIRTUALMEMORY_HASH;
-			dwUtilitySyscallsIdx = NTFREEVIRTUALMEMORY_SYSCALL;
+			pSyscall = strUtilitySyscalls->NtFreeVirtualMemorySyscall;
 			--dwCounter;
 		}
 
 		if (dwCryptedHash == 0)
 			continue;
 
-		if (dwIdxSyscall < dwSyscallSize && Syscalls[dwIdxSyscall].dwCryptedHash == dwCryptedHash) {
-			UtilitySyscalls[dwUtilitySyscallsIdx] = Syscalls[dwIdxSyscall];
+		if (dwIdxSyscall < dwSyscallSize && Syscalls[dwIdxSyscall]->dwCryptedHash == dwCryptedHash) {
+			*pSyscall = *Syscalls[dwIdxSyscall];
 		}
 		else {
-			if (!ExtractSysCallData(pStub, &UtilitySyscalls[dwUtilitySyscallsIdx]))
+			if (!ExtractSysCallData(pStub, pSyscall))
 				return FALSE;
 		}
 
@@ -420,13 +421,19 @@ BOOL getSyscallsFromNtdll(PVOID pNtdllBase, Syscall Syscalls[], DWORD dwSyscallS
 
 	// Last check to make sure we have everything we need
 	for (dwIdxSyscall = 0; dwIdxSyscall < dwSyscallSize; ++dwIdxSyscall) {
-		if (Syscalls[dwIdxSyscall].pColdGate == NULL)
+		if (Syscalls[dwIdxSyscall]->pColdGate == NULL)
 			return FALSE;
 	}
-	for (dwIdxSyscall = 0; dwIdxSyscall < dwUtilitySyscallsize; ++dwIdxSyscall) {
-		if (UtilitySyscalls[dwIdxSyscall].pColdGate == NULL)
-			return FALSE;
+
+	if (strUtilitySyscalls->NtAllocateVirtualMemorySyscall->pColdGate == NULL ||
+	    strUtilitySyscalls->NtReadVirtualMemorySyscall->pColdGate == NULL ||
+	    strUtilitySyscalls->NtCloseSyscall->pColdGate == NULL ||
+	    strUtilitySyscalls->NtTerminateProcessSyscall->pColdGate == NULL ||
+	    strUtilitySyscalls->NtFreeVirtualMemorySyscall->pColdGate == NULL)
+	{
+		return FALSE;
 	}
+
 
 	return TRUE;
 }
@@ -434,7 +441,7 @@ BOOL getSyscallsFromNtdll(PVOID pNtdllBase, Syscall Syscalls[], DWORD dwSyscallS
 //
 // Get the syscall numbers using the Freeze technnique
 //
-BOOL GetHookedSyscallNumbers(PVOID pNtdllBase, UtilityFunctions* pUtilityFunctions, Syscall Syscalls[], DWORD dwSyscallSize, Syscall UtilitySyscalls[], DWORD dwUtilitySyscallsize) {
+BOOL GetHookedSyscallNumbers(PVOID pNtdllBase, UtilityFunctions* pUtilityFunctions, Syscall* Syscalls[], DWORD dwSyscallSize, UtilitySyscalls* strUtilitySyscalls) {
 	BOOL bSuccess = FALSE;
 	CHAR szProc[EXE_PATH_SIZE] = { 0 };
 	CHAR szExe[] = { 'n', 'e', 't', 's', 'h', '.', 'e', 'x', 'e', '\0' };
@@ -452,9 +459,13 @@ BOOL GetHookedSyscallNumbers(PVOID pNtdllBase, UtilityFunctions* pUtilityFunctio
 	UINT_PTR upOffset = 0;
 
 	// First, make sure we have the function needed to bypass hooking
-	for (dwIdxSyscall = 0; dwIdxSyscall < dwUtilitySyscallsize; ++dwIdxSyscall) {
-		if (UtilitySyscalls[dwIdxSyscall].pColdGate == NULL)
-			goto exit;
+	if (strUtilitySyscalls->NtAllocateVirtualMemorySyscall->pColdGate == NULL ||
+	    strUtilitySyscalls->NtReadVirtualMemorySyscall->pColdGate == NULL ||
+	    strUtilitySyscalls->NtCloseSyscall->pColdGate == NULL ||
+	    strUtilitySyscalls->NtTerminateProcessSyscall->pColdGate == NULL ||
+	    strUtilitySyscalls->NtFreeVirtualMemorySyscall->pColdGate == NULL)
+	{
+		goto exit;
 	}
 
 	if (pNtdllBase == NULL)
@@ -484,12 +495,12 @@ BOOL GetHookedSyscallNumbers(PVOID pNtdllBase, UtilityFunctions* pUtilityFunctio
 
 	// Now, we just need to allocate some memory space locally and copy the ntdll.dll section form the created process.
 	RegionSize = cbSectionSize;
-	if (NtAllocateVirtualMemoryWrapper(&UtilitySyscalls[NTALLOCATEVIRTUALMEMORY_SYSCALL], (HANDLE)-1, &pLocalSection, (ULONG_PTR)0, &RegionSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE) != 0) {
+	if (NtAllocateVirtualMemoryWrapper(strUtilitySyscalls->NtAllocateVirtualMemorySyscall, (HANDLE)-1, &pLocalSection, (ULONG_PTR)0, &RegionSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE) != 0) {
 		__debugbreak();
 		goto exit;
 	}
 
-	if (NtReadVirtualMemoryWrapper(&UtilitySyscalls[NTREADVIRTUALMEMORY_SYSCALL], pi.hProcess, (PVOID)((PBYTE)pNtdllBase + dwTextSectionVA), pLocalSection, cbSectionSize, NULL) != 0) {
+	if (NtReadVirtualMemoryWrapper(strUtilitySyscalls->NtReadVirtualMemorySyscall, pi.hProcess, (PVOID)((PBYTE)pNtdllBase + dwTextSectionVA), pLocalSection, cbSectionSize, NULL) != 0) {
 		__debugbreak();
 		goto exit;
 	}
@@ -503,26 +514,26 @@ BOOL GetHookedSyscallNumbers(PVOID pNtdllBase, UtilityFunctions* pUtilityFunctio
 	pwAddrOfNameOrdinales = (PWORD)((PBYTE)pNtdllBase + pExportDir->AddressOfNameOrdinals);
 
 	for (dwIdxSyscall = 0; dwIdxSyscall < dwSyscallSize; ++dwIdxSyscall) {
-		if (Syscalls[dwIdxSyscall].hooked) {
+		if (Syscalls[dwIdxSyscall]->hooked) {
 			// pColdGate contains the native API function address in the loaded ntdll
-			pOriginalStub = Syscalls[dwIdxSyscall].pColdGate;
+			pOriginalStub = Syscalls[dwIdxSyscall]->pColdGate;
 
 			// dwSyscallNr contains the index to the function name we got the first time we tried to get the syscall data.
-			pStub = (PVOID)((PBYTE)pLocalSection - dwTextSectionVA + pdwAddrOfFunctions[pwAddrOfNameOrdinales[Syscalls[dwIdxSyscall].dwSyscallNr]]);
+			pStub = (PVOID)((PBYTE)pLocalSection - dwTextSectionVA + pdwAddrOfFunctions[pwAddrOfNameOrdinales[Syscalls[dwIdxSyscall]->dwSyscallNr]]);
 			if (pStub == NULL)
 				goto exit;
 
-			bSuccess = ExtractSysCallData(pStub, &Syscalls[dwIdxSyscall]);
+			bSuccess = ExtractSysCallData(pStub, Syscalls[dwIdxSyscall]);
 			// If it is still hooked, the Freeze technique failed and we cannot do anything else.
-			if (!bSuccess || Syscalls[dwIdxSyscall].hooked)
+			if (!bSuccess || Syscalls[dwIdxSyscall]->hooked)
 				goto exit;
 
 			// Now, the trampoline address (pColdGate) points to an address located in the local copy of ntdll.
 			// We need to set it to a trampoline address in the loaded ntdll.
 			// First, get the offset of the trampoline address.
-			upOffset = ((PBYTE)Syscalls[dwIdxSyscall].pColdGate - (PBYTE)pStub);
+			upOffset = ((PBYTE)Syscalls[dwIdxSyscall]->pColdGate - (PBYTE)pStub);
 			// Then, add the offset to get the address in the loaded ntdll
-			Syscalls[dwIdxSyscall].pColdGate = (LPVOID)((PBYTE)pOriginalStub + upOffset);
+			Syscalls[dwIdxSyscall]->pColdGate = (LPVOID)((PBYTE)pOriginalStub + upOffset);
 		}
 	}
 
@@ -530,23 +541,23 @@ BOOL GetHookedSyscallNumbers(PVOID pNtdllBase, UtilityFunctions* pUtilityFunctio
 
 exit:
 	if (pi.hProcess) {
-		if (NtTerminateProcessWrapper(&UtilitySyscalls[NTTERMINATEPROCESS_SYSCALL], pi.hProcess, (NTSTATUS)0) != 0) {
+		if (NtTerminateProcessWrapper(strUtilitySyscalls->NtTerminateProcessSyscall, pi.hProcess, (NTSTATUS)0) != 0) {
 			__debugbreak();
 		}
-		if (NtCloseWrapper(&UtilitySyscalls[NTCLOSE_SYSCALL], pi.hProcess) != 0) {
+		if (NtCloseWrapper(strUtilitySyscalls->NtCloseSyscall, pi.hProcess) != 0) {
 			__debugbreak();
 		}
 	}
 
 	if (pi.hThread) {
-		if (NtCloseWrapper(&UtilitySyscalls[NTCLOSE_SYSCALL], pi.hThread) != 0) {
+		if (NtCloseWrapper(strUtilitySyscalls->NtCloseSyscall, pi.hThread) != 0) {
 			__debugbreak();
 		}
 	}
 
 	if (pLocalSection) {
 		RegionSize = 0;
-		if (NtFreeVirtualMemoryWrapper(&UtilitySyscalls[NTFREEVIRTUALMEMORY_SYSCALL], (HANDLE)-1, &pLocalSection, &RegionSize, MEM_RELEASE) != 0) {
+		if (NtFreeVirtualMemoryWrapper(strUtilitySyscalls->NtFreeVirtualMemorySyscall, (HANDLE)-1, &pLocalSection, &RegionSize, MEM_RELEASE) != 0) {
 			__debugbreak();
 		}
 		pLocalSection = NULL;
@@ -612,34 +623,27 @@ BOOL getKernel32Functions(PVOID pKernel32, UtilityFunctions* pUtilityFunctions) 
 //
 // Main function the populate the array of Syscall structures before calling each ColdGate Native API function
 //
-BOOL getSyscalls(PVOID pNtdllBase, Syscall Syscalls[], DWORD dwSyscallSize, UtilityFunctions* pUtilityFunctions) {
+BOOL getSyscalls(PVOID pNtdllBase, Syscall* Syscalls[], DWORD dwSyscallSize, UtilityFunctions* pUtilityFunctions) {
 	BOOL hasHooked = FALSE;
 
-	Syscall ColdGateSyscalls[5];
-	ColdGateSyscalls[0].dwCryptedHash = NTALLOCATEVIRTUALMEMORY_HASH;
-	ColdGateSyscalls[0].dwNumberOfArgs = 6;
-	ColdGateSyscalls[0].hooked = FALSE;
-	ColdGateSyscalls[1].dwCryptedHash = NTREADVIRTUALMEMORY_HASH;
-	ColdGateSyscalls[1].dwNumberOfArgs = 5;
-	ColdGateSyscalls[1].hooked = FALSE;
-	ColdGateSyscalls[2].dwCryptedHash = NTCLOSE_HASH;
-	ColdGateSyscalls[2].dwNumberOfArgs = 1;
-	ColdGateSyscalls[2].hooked = FALSE;
-	ColdGateSyscalls[3].dwCryptedHash = NTTERMINATEPROCESS_HASH;
-	ColdGateSyscalls[3].dwNumberOfArgs = 2;
-	ColdGateSyscalls[3].hooked = FALSE;
-	ColdGateSyscalls[4].dwCryptedHash = NTFREEVIRTUALMEMORY_HASH;
-	ColdGateSyscalls[4].dwNumberOfArgs = 4;
-	ColdGateSyscalls[4].hooked = FALSE;
+	UtilitySyscalls strUtilitySyscalls;
+	Syscall NtAllocateVirtualMemorySyscall = { NTALLOCATEVIRTUALMEMORY_HASH, 6 };
+	strUtilitySyscalls.NtAllocateVirtualMemorySyscall = &NtAllocateVirtualMemorySyscall;
+	Syscall NtReadVirtualMemorySyscall = { NTREADVIRTUALMEMORY_HASH, 5 };
+	strUtilitySyscalls.NtReadVirtualMemorySyscall = &NtReadVirtualMemorySyscall;
+	Syscall NtCloseSyscall = { NTCLOSE_HASH, 1 };
+	strUtilitySyscalls.NtCloseSyscall = &NtCloseSyscall;
+	Syscall NtTerminateProcessSyscall = { NTTERMINATEPROCESS_HASH, 2 };
+	strUtilitySyscalls.NtTerminateProcessSyscall = &NtTerminateProcessSyscall;
+	Syscall NtFreeVirtualMemorySyscall = { NTFREEVIRTUALMEMORY_HASH, 4 };
+	strUtilitySyscalls.NtFreeVirtualMemorySyscall = &NtFreeVirtualMemorySyscall;
 
-	DWORD dwColdGateSyscallSize  = sizeof(ColdGateSyscalls) / sizeof(ColdGateSyscalls[0]);
-
-	if (!getSyscallsFromNtdll(pNtdllBase, Syscalls, dwSyscallSize, ColdGateSyscalls, dwColdGateSyscallSize))
+	if (!getSyscallsFromNtdll(pNtdllBase, Syscalls, dwSyscallSize, &strUtilitySyscalls))
 		return FALSE;
 
 	// Check if we have hooked functions
 	for (DWORD i = 0; i < dwSyscallSize; ++i) {
-		if (Syscalls[i].hooked) {
+		if (Syscalls[i]->hooked) {
 			hasHooked = TRUE;
 			break;
 		}
@@ -647,7 +651,7 @@ BOOL getSyscalls(PVOID pNtdllBase, Syscall Syscalls[], DWORD dwSyscallSize, Util
 
 	// Process hooked functions if any
 	if (hasHooked) {
-		if (!GetHookedSyscallNumbers(pNtdllBase, pUtilityFunctions, Syscalls, dwSyscallSize, ColdGateSyscalls, dwColdGateSyscallSize))
+		if (!GetHookedSyscallNumbers(pNtdllBase, pUtilityFunctions, Syscalls, dwSyscallSize, &strUtilitySyscalls))
 			return FALSE;
 	}
 

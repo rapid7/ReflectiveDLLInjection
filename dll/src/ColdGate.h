@@ -82,11 +82,20 @@ typedef UINT(WINAPI* GETSYSTEMDIRECTORYA)(LPSTR lpBuffer, UINT uSize);
 
 typedef struct {
     DWORD dwCryptedHash;
-    DWORD dwSyscallNr;
     DWORD dwNumberOfArgs;
+    DWORD dwSyscallNr;
     BOOL  hooked;
     PVOID pColdGate;
 } Syscall;
+
+#define UTILITY_SYSCALLS_SIZE 5
+typedef struct {
+    Syscall* NtAllocateVirtualMemorySyscall;
+    Syscall* NtReadVirtualMemorySyscall;
+    Syscall* NtCloseSyscall;
+    Syscall* NtTerminateProcessSyscall;
+    Syscall* NtFreeVirtualMemorySyscall;
+} UtilitySyscalls;
 
 // TODO: Ideally, we should separate what is used by ReflectiveLoader.c and by ColdGate.c to avoid dependencies between them.
 //   This would allow the reuse of ColdGate independently for other projects.
@@ -224,17 +233,17 @@ typedef struct __PEB // 65 elements, 0x210 bytes
 
 BOOL findModules(PVOID* pNtdllBase, PVOID* pKernel32);
 BOOL getKernel32Functions(PVOID pNtdllBase, UtilityFunctions* pUtilityFunctions);
-BOOL getSyscalls(PVOID pNtdllBase, Syscall Syscalls[], DWORD dwNumberOfSyscalls, UtilityFunctions* pUtilityFunctions);
+BOOL getSyscalls(PVOID pNtdllBase, Syscall* Syscalls[], DWORD dwNumberOfSyscalls, UtilityFunctions* pUtilityFunctions);
 extern NTSTATUS DoSyscall(VOID);
 
 //
 // Native API functions
 //
-NTSTATUS msfNtAllocateVirtualMemory(Syscall* pSyscall, HANDLE hProcess, PVOID* pBaseAddress, ULONG_PTR pZeroBits, PSIZE_T pRegionSize, ULONG ulAllocationType, ULONG ulProtect);
-NTSTATUS msfNtProtectVirtualMemory(Syscall* pSyscall, HANDLE hProcess, PVOID* pBaseAddress, PSIZE_T pNumberOfBytesToProtect, ULONG ulNewAccessProtection, PULONG ulOldAccessProtection);
-NTSTATUS msfNtFlushInstructionCache(Syscall* pSyscall, HANDLE hProcess, PVOID* pBaseAddress, SIZE_T FlushSize);
-NTSTATUS msfNtLockVirtualMemory(Syscall* pSyscall, HANDLE hProcess, PVOID* pBaseAddress, PSIZE_T NumberOfBytesToLock, ULONG MapType);
-NTSTATUS msfNtReadVirtualMemory(Syscall * pSyscall, HANDLE hProcess, PVOID pBaseAddress, PVOID pBuffer, SIZE_T NumberOfBytesToRead, PSIZE_T pNumberOfBytesRead);
-NTSTATUS msfNtClose(Syscall * pSyscall, HANDLE hProcess);
-NTSTATUS msfNtTerminateProcess(Syscall * pSyscall, HANDLE hProcess, NTSTATUS ntExitStatus);
-NTSTATUS msfNtFreeVirtualMemory(Syscall * pSyscall, HANDLE hProcess, PVOID * pBaseAddress, PSIZE_T pRegionSize, ULONG uFreeType);
+NTSTATUS rdiNtAllocateVirtualMemory(Syscall* pSyscall, HANDLE hProcess, PVOID* pBaseAddress, ULONG_PTR pZeroBits, PSIZE_T pRegionSize, ULONG ulAllocationType, ULONG ulProtect);
+NTSTATUS rdiNtProtectVirtualMemory(Syscall* pSyscall, HANDLE hProcess, PVOID* pBaseAddress, PSIZE_T pNumberOfBytesToProtect, ULONG ulNewAccessProtection, PULONG ulOldAccessProtection);
+NTSTATUS rdiNtFlushInstructionCache(Syscall* pSyscall, HANDLE hProcess, PVOID* pBaseAddress, SIZE_T FlushSize);
+NTSTATUS rdiNtLockVirtualMemory(Syscall* pSyscall, HANDLE hProcess, PVOID* pBaseAddress, PSIZE_T NumberOfBytesToLock, ULONG MapType);
+NTSTATUS rdiNtReadVirtualMemory(Syscall * pSyscall, HANDLE hProcess, PVOID pBaseAddress, PVOID pBuffer, SIZE_T NumberOfBytesToRead, PSIZE_T pNumberOfBytesRead);
+NTSTATUS rdiNtClose(Syscall * pSyscall, HANDLE hProcess);
+NTSTATUS rdiNtTerminateProcess(Syscall * pSyscall, HANDLE hProcess, NTSTATUS ntExitStatus);
+NTSTATUS rdiNtFreeVirtualMemory(Syscall * pSyscall, HANDLE hProcess, PVOID * pBaseAddress, PSIZE_T pRegionSize, ULONG uFreeType);

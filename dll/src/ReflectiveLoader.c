@@ -26,6 +26,7 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //===============================================================================================//
 #include "ReflectiveLoader.h"
+#include "DirectSyscall.c"
 //===============================================================================================//
 // Our loader will set this to a pseudo correct HINSTANCE/HMODULE value
 HINSTANCE hAppInstance = NULL;

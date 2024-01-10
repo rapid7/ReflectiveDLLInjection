@@ -68,14 +68,6 @@ typedef struct {
     PVOID pStub;
 } Syscall;
 
-// TODO: Have a custom implementation of these function to avoid using Kernel32 and reduce the dependency issue.
-#define UTILITY_FUNC_NB 2
-typedef struct {
-    // These 2 functions are used by ReflectiveLoader()
-    LOADLIBRARYA   pLoadLibraryA;
-    GETPROCADDRESS pGetProcAddress;
-} UtilityFunctions;
-
 typedef struct {
     DWORD dwCryptedHash;
     PVOID pAddress;

@@ -25,6 +25,16 @@
 // OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
 // POSSIBILITY OF SUCH DAMAGE.
 //===============================================================================================//
+
+// C5045 warning was introduced in Visual Studio 2017 version 15.7
+// See https://devblogs.microsoft.com/cppblog/spectre-mitigations-in-msvc/
+// See https://learn.microsoft.com/en-us/cpp/preprocessor/predefined-macros?view=msvc-170
+#if _MSC_VER >= 1914
+#pragma warning(disable: 5045) // warning C5045: Compiler will insert Spectre mitigation for memory load if /Qspectre switch specified
+#endif
+#pragma warning(disable: 4820) // warning C4820: X bytes padding added after construct Y
+#pragma warning(disable: 4710) // warning C4710: The specified function was marked for inline expansion, but the compiler didn't inline the function.
+
 #ifndef _REFLECTIVEDLLINJECTION_LOADLIBRARYR_H
 #define _REFLECTIVEDLLINJECTION_LOADLIBRARYR_H
 //===============================================================================================//

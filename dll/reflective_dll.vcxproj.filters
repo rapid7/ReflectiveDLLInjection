@@ -17,6 +17,9 @@
     <ClCompile Include="src\ReflectiveLoader.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\DirectSyscall.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\ReflectiveLoader.h">
@@ -25,5 +28,16 @@
     <ClInclude Include="..\common\ReflectiveDLLInjection.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\DirectSyscall.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <MASM Include="src\GateTrampoline32.asm">
+      <Filter>Source Files</Filter>
+    </MASM>
+    <MASM Include="src\GateTrampoline64.asm">
+      <Filter>Source Files</Filter>
+    </MASM>
   </ItemGroup>
 </Project>

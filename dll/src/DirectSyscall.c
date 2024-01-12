@@ -57,7 +57,6 @@ BOOL ExtractSysCallData(PVOID pStub, Syscall *pSyscall) {
 
 		if (*pbCurrentByte == 0xc3) // Too far
 			return FALSE;
-
 #ifdef _WIN64
 		// On x64 Windows, the function starts like this:
 		// 4C 8B D1          mov r10, rcx
@@ -72,17 +71,17 @@ BOOL ExtractSysCallData(PVOID pStub, Syscall *pSyscall) {
 			// Then on Windows 10/11 (x64):
 			// F6 04 25 08 03 FE 7F 01    test    byte ptr ds:7FFE0308h, 1
 			// 75 03                      jnz     short loc_1800A4E65
-			// 0F 05                      syscall
+			// 0F 05                      syscall            ; XOR'ing these bytes to obfuscate them when comparing below
 			// C3                         retn
-			if (*(PUINT64)(pbCurrentByte + 8) == 0x017ffe03082504f6 && *(PUINT32)(pbCurrentByte + 16) == 0x050f0375 && *(pbCurrentByte + 20) == 0xc3) {
+			if (*(PUINT64)(pbCurrentByte + 8) == 0x017ffe03082504f6 && (*(PUINT32)(pbCurrentByte + 16) ^ 0x01010101) == 0x040e0274 && *(pbCurrentByte + 20) == 0xc3) {
 				cOffsetStub = cIdxStub + 18;
 				break;
 			}
 
 			// On Windows 7 SP1 (x64), Windows Server 2012 (x64), Windows Vista (x64) and Windows XP (x64):
-			// 0F 05                        syscall
+			// 0F 05                        syscall           ; XOR'ing these bytes to obfuscate them when comparing below
 			// C3                           retn
-			if (*(PUINT16)(pbCurrentByte + 8) == 0x050f && *(pbCurrentByte + 10) == 0xc3) {
+			if ((*(PUINT16)(pbCurrentByte + 8) ^ 0x0101) == 0x040e && *(pbCurrentByte + 10) == 0xc3) {
 				cOffsetStub = cIdxStub + 8;
 				break;
 			}
@@ -137,7 +136,15 @@ BOOL ExtractSysCallData(PVOID pStub, Syscall *pSyscall) {
 				// 75 0E                        jnz     short loc_4B2F4CDF
 				// 64 FF 15 C0 00 00 00         call    large dword ptr fs : 0C0h
 				// C2 14 00                     retn    14h
-				*(PUINT64)(pbCurrentByte + 17) == 0xc2000000c015ff64
+				*(PUINT64)(pbCurrentByte + 17) == 0xc2000000c015ff64 ||
+
+				// On Windows 10, Windows 8, Windows 8.1 and Windows 8.1 SP1 (x86):
+				// E8 03 00 00 00               call    sub_6A290C2D
+				// C2 18 00                     retn    18h
+				// 8B D4                        mov     edx, esp
+				// 0F 34                        sysenter    ; XOR'ing these bytes to obfuscate them when comparing below
+				// C3                           retn
+				*(PUINT32)(pbCurrentByte + 5) == 0x000003e8 && *(PUINT16)(pbCurrentByte + 9) == 0xc200 && (*(PUINT32)(pbCurrentByte + 13) ^ 0x01010101) == 0x350ed58a && *(pbCurrentByte + 17) == 0xc3
 
 				) {
 				cOffsetStub = cIdxStub + 5;
@@ -224,6 +231,7 @@ BOOL getSyscalls(PVOID pNtdllBase, Syscall* Syscalls[], DWORD dwSyscallSize) {
 	for (dwIdxSyscall = 0; dwIdxSyscall < dwSyscallSize; ++dwIdxSyscall) {
 		for (i = 0; i < SyscallList.dwCount; ++i) {
 			if (SyscallList.Entries[i].dwCryptedHash == Syscalls[dwIdxSyscall]->dwCryptedHash) {
+
 				if (!ExtractSysCallData(SyscallList.Entries[i].pAddress, Syscalls[dwIdxSyscall]))
 					return FALSE;
 				Syscalls[dwIdxSyscall]->dwSyscallNr = i;

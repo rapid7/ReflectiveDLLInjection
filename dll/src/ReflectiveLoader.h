@@ -26,30 +26,41 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //===============================================================================================//
 
-// C5045 warning was introduced in Visual Studio 2017 version 15.7
-// See https://devblogs.microsoft.com/cppblog/spectre-mitigations-in-msvc/
-// See https://learn.microsoft.com/en-us/cpp/preprocessor/predefined-macros?view=msvc-170
 #if _MSC_VER >= 1914
-#pragma warning(disable: 5045) // warning C5045: Compiler will insert Spectre mitigation for memory load if /Qspectre switch specified
+#pragma warning(disable: 5045) 
 #endif
-#pragma warning(disable: 4820) // warning C4820: X bytes padding added after construct Y
+#pragma warning(disable: 4820) 
 
 #ifndef _REFLECTIVEDLLINJECTION_REFLECTIVELOADER_H
 #define _REFLECTIVEDLLINJECTION_REFLECTIVELOADER_H
-//===============================================================================================//
+
 #define WIN32_LEAN_AND_MEAN
-
-#pragma warning(disable: 4668) // warning C4820: 'symbol' is not defined as a preprocessor macro, replacing with '0' for 'directives'
-#pragma warning(disable: 4255) // warning C4820: 'function' : no function prototype given: converting '()' to '(void)'
-
 #include <windows.h>
-#include <winsock2.h>
+
+#include <winsock2.h> 
 #include <intrin.h>
 
-#include "ReflectiveDLLInjection.h"
+#define DLL_QUERY_HMODULE		6
+
+#define DEREF( name )*(UINT_PTR *)(name)
+#define DEREF_64( name )*(DWORD64 *)(name)
+#define DEREF_32( name )*(DWORD *)(name)
+#define DEREF_16( name )*(WORD *)(name)
+#define DEREF_8( name )*(BYTE *)(name)
+
+typedef ULONG_PTR (WINAPI * REFLECTIVELOADER)( VOID );
+typedef BOOL (WINAPI * DLLMAIN)( HINSTANCE, DWORD, LPVOID );
+
+#ifndef DLLEXPORT
+    #ifdef _MSC_VER
+        #define DLLEXPORT __declspec(dllexport)
+    #else
+        #define DLLEXPORT __attribute__((dllexport)) 
+    #endif
+#endif
+
 #include "DirectSyscall.h"
 
-// Enable this define to turn on locking of memory to prevent paging
 #define ENABLE_STOPPAGING
 
 #ifdef ENABLE_STOPPAGING
@@ -62,6 +73,5 @@ typedef struct
 	WORD	offset:12;
 	WORD	type:4;
 } IMAGE_RELOC, *PIMAGE_RELOC;
-//===============================================================================================//
+
 #endif
-//===============================================================================================//

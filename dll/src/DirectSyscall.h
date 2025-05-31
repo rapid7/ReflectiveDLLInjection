@@ -1,14 +1,11 @@
 #pragma once
 
-// C5045 warning was introduced in Visual Studio 2017 version 15.7
-// See https://devblogs.microsoft.com/cppblog/spectre-mitigations-in-msvc/
-// See https://learn.microsoft.com/en-us/cpp/preprocessor/predefined-macros?view=msvc-170
 #if _MSC_VER >= 1914
-#pragma warning(disable: 5045) // warning C5045: Compiler will insert Spectre mitigation for memory load if /Qspectre switch specified
+#pragma warning(disable : 5045)
 #endif
-#pragma warning(disable: 4820) // warning C4820: X bytes padding added after construct Y
-#pragma warning(disable: 4668) // warning C4820: 'symbol' is not defined as a preprocessor macro, replacing with '0' for 'directives'
-#pragma warning(disable: 4255) // warning C4820: 'function' : no function prototype given: converting '()' to '(void)'
+#pragma warning(disable : 4820)
+#pragma warning(disable : 4668)
+#pragma warning(disable : 4255)
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -20,27 +17,26 @@
 #define SYS_STUB_SIZE 16
 #endif
 
-#define HASH_KEY      13
+#define HASH_KEY 13
 
-#define KERNEL32DLL_HASH             0x6A4ABC5B
-#define NTDLLDLL_HASH                0x3CFA685D
+#define KERNEL32DLL_HASH 0x6A4ABC5B
+#define NTDLLDLL_HASH 0x3CFA685D
 
 #define ZWALLOCATEVIRTUALMEMORY_HASH 0xD33D4AED
-#define ZWPROTECTVIRTUALMEMORY_HASH  0xBC3F4D89
+#define ZWPROTECTVIRTUALMEMORY_HASH 0xBC3F4D89
 #define ZWFLUSHINSTRUCTIONCACHE_HASH 0x534D8AE8
 
-#define LOADLIBRARYA_HASH            0xEC0E4E8E
-#define GETPROCADDRESS_HASH          0x7C0DFCAA
+#define LOADLIBRARYA_HASH 0xEC0E4E8E
+#define GETPROCADDRESS_HASH 0x7C0DFCAA
 
-//===============================================================================================//
-#pragma intrinsic( _rotr )
+#pragma intrinsic(_rotr)
 
 __forceinline DWORD ror(DWORD d)
 {
     return _rotr(d, HASH_KEY);
 }
 
-__forceinline DWORD _hash(char* c)
+__forceinline DWORD _hash(char *c)
 {
     register DWORD h = 0;
     do
@@ -51,49 +47,45 @@ __forceinline DWORD _hash(char* c)
 
     return h;
 }
-//===============================================================================================//
-
 
 #ifndef NTSTATUS
 typedef LONG NTSTATUS;
 #endif
 
-typedef HMODULE(WINAPI* LOADLIBRARYA)(LPCSTR);
-typedef FARPROC(WINAPI* GETPROCADDRESS)(HMODULE, LPCSTR);
+typedef HMODULE(WINAPI *LOADLIBRARYA)(LPCSTR);
+typedef FARPROC(WINAPI *GETPROCADDRESS)(HMODULE, LPCSTR);
 
-typedef struct {
+typedef struct
+{
     DWORD dwCryptedHash;
     DWORD dwNumberOfArgs;
     DWORD dwSyscallNr;
     PVOID pStub;
 } Syscall;
 
-typedef struct {
+typedef struct
+{
     DWORD dwCryptedHash;
     PVOID pAddress;
 } SYSCALL_ENTRY;
 
 #define MAX_SYSCALLS 600
-typedef struct {
+typedef struct
+{
     DWORD dwCount;
     SYSCALL_ENTRY Entries[MAX_SYSCALLS];
 } SYSCALL_LIST;
 
-
-// The structure definitions below come from the original ReflectiveLoader.h
-//===============================================================================================//
 typedef struct _UNICODE_STR
 {
     USHORT Length;
     USHORT MaximumLength;
     PWSTR pBuffer;
-} UNICODE_STR, * PUNICODE_STR;
+} UNICODE_STR, *PUNICODE_STR;
 
-// WinDbg> dt -v ntdll!_LDR_DATA_TABLE_ENTRY
-//__declspec( align(8) ) 
+//__declspec( align(8) )
 typedef struct _LDR_DATA_TABLE_ENTRY
 {
-    //LIST_ENTRY InLoadOrderLinks; // As we search from PPEB_LDR_DATA->InMemoryOrderModuleList we dont use the first entry.
     LIST_ENTRY InMemoryOrderModuleList;
     LIST_ENTRY InInitializationOrderModuleList;
     PVOID DllBase;
@@ -106,10 +98,9 @@ typedef struct _LDR_DATA_TABLE_ENTRY
     SHORT TlsIndex;
     LIST_ENTRY HashTableEntry;
     ULONG TimeDateStamp;
-} LDR_DATA_TABLE_ENTRY, * PLDR_DATA_TABLE_ENTRY;
+} LDR_DATA_TABLE_ENTRY, *PLDR_DATA_TABLE_ENTRY;
 
-// WinDbg> dt -v ntdll!_PEB_LDR_DATA
-typedef struct _PEB_LDR_DATA //, 7 elements, 0x28 bytes
+typedef struct _PEB_LDR_DATA
 {
     DWORD dwLength;
     DWORD dwInitialized;
@@ -118,18 +109,15 @@ typedef struct _PEB_LDR_DATA //, 7 elements, 0x28 bytes
     LIST_ENTRY InMemoryOrderModuleList;
     LIST_ENTRY InInitializationOrderModuleList;
     LPVOID lpEntryInProgress;
-} PEB_LDR_DATA, * PPEB_LDR_DATA;
+} PEB_LDR_DATA, *PPEB_LDR_DATA;
 
-// WinDbg> dt -v ntdll!_PEB_FREE_BLOCK
-typedef struct _PEB_FREE_BLOCK // 2 elements, 0x8 bytes
+typedef struct _PEB_FREE_BLOCK
 {
-    struct _PEB_FREE_BLOCK* pNext;
+    struct _PEB_FREE_BLOCK *pNext;
     DWORD dwSize;
-} PEB_FREE_BLOCK, * PPEB_FREE_BLOCK;
+} PEB_FREE_BLOCK, *PPEB_FREE_BLOCK;
 
-// struct _PEB is defined in Winternl.h but it is incomplete
-// WinDbg> dt -v ntdll!_PEB
-typedef struct __PEB // 65 elements, 0x210 bytes
+typedef struct __PEB
 {
     BYTE bInheritedAddressSpace;
     BYTE bReadImageFileExecOptions;
@@ -196,17 +184,12 @@ typedef struct __PEB // 65 elements, 0x210 bytes
     LPVOID lpSystemDefaultActivationContextData;
     LPVOID lpSystemAssemblyStorageMap;
     DWORD dwMinimumStackCommit;
-} _PEB, * _PPEB;
+} _PEB, *_PPEB;
 
-//===============================================================================================//
-
-BOOL getSyscalls(PVOID pNtdllBase, Syscall* Syscalls[], DWORD dwNumberOfSyscalls);
+BOOL getSyscalls(PVOID pNtdllBase, Syscall *Syscalls[], DWORD dwSyscallArraySize);
 extern NTSTATUS DoSyscall(VOID);
 
-//
-// Native API functions
-//
-NTSTATUS rdiNtAllocateVirtualMemory(Syscall* pSyscall, HANDLE hProcess, PVOID* pBaseAddress, ULONG_PTR pZeroBits, PSIZE_T pRegionSize, ULONG ulAllocationType, ULONG ulProtect);
-NTSTATUS rdiNtProtectVirtualMemory(Syscall* pSyscall, HANDLE hProcess, PVOID* pBaseAddress, PSIZE_T pNumberOfBytesToProtect, ULONG ulNewAccessProtection, PULONG ulOldAccessProtection);
-NTSTATUS rdiNtFlushInstructionCache(Syscall* pSyscall, HANDLE hProcess, PVOID* pBaseAddress, SIZE_T FlushSize);
-NTSTATUS rdiNtLockVirtualMemory(Syscall* pSyscall, HANDLE hProcess, PVOID* pBaseAddress, PSIZE_T NumberOfBytesToLock, ULONG MapType);
+NTSTATUS rdiNtAllocateVirtualMemory(Syscall *pSyscall, HANDLE hProcess, PVOID *pBaseAddress, ULONG_PTR pZeroBits, PSIZE_T pRegionSize, ULONG ulAllocationType, ULONG ulProtect);
+NTSTATUS rdiNtProtectVirtualMemory(Syscall *pSyscall, HANDLE hProcess, PVOID *pBaseAddress, PSIZE_T pNumberOfBytesToProtect, ULONG ulNewAccessProtection, PULONG ulOldAccessProtection);
+NTSTATUS rdiNtFlushInstructionCache(Syscall *pSyscall, HANDLE hProcess, PVOID *pBaseAddress, SIZE_T FlushSize);
+NTSTATUS rdiNtLockVirtualMemory(Syscall *pSyscall, HANDLE hProcess, PVOID *pBaseAddress, PSIZE_T NumberOfBytesToLock, ULONG MapType);

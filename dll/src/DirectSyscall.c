@@ -1,5 +1,21 @@
 #include "DirectSyscall.h"
 
+#if defined(_M_ARM64)
+    #if defined(_MSC_VER) && !defined(PROVIDE_ARM64_DOSYSCALL_IMPL)
+    #include <arm64intr.h>
+    NTSTATUS DoSyscall(VOID) {
+        return (NTSTATUS)0xC0000001;
+    }
+    #elif (defined(__GNUC__) || defined(__clang__)) && !defined(PROVIDE_ARM64_DOSYSCALL_IMPL)
+    NTSTATUS DoSyscall(VOID) {
+        return (NTSTATUS)0xC0000001;
+    }
+    #endif
+#endif
+
+
+#if !defined(_M_ARM64)
+
 #pragma optimize("g", off)
 #ifdef __MINGW32__
 #pragma GCC push_options
@@ -45,13 +61,13 @@ BOOL ExtractTrampolineAddress(PVOID pStub, Syscall *pSyscall)
 		return FALSE;
 	}
 
-#ifdef _WIN64
+#ifdef _WIN64 // x64
 	if ((*(PUINT32)pStub == 0xb8d18b4c && *(PUINT16)((PBYTE)pStub + 4) == pSyscall->dwSyscallNr) || *(PBYTE)pStub == 0xe9)
 	{
 		pSyscall->pStub = (LPVOID)((PBYTE)pStub + 8);
 		return TRUE;
 	}
-#else
+#else // x86
 	if ((*(PBYTE)pStub == 0xb8 && *(PUINT16)((PBYTE)pStub + 1) == pSyscall->dwSyscallNr) || *(PBYTE)pStub == 0xe9)
 	{
 		pSyscall->pStub = (LPVOID)((PBYTE)pStub + 5);
@@ -107,7 +123,7 @@ BOOL getSyscalls(PVOID pNtdllBase, Syscall *Syscalls[], DWORD dwSyscallArraySize
 		PCHAR pszFunctionName = (PCHAR)((PBYTE)pNtdllBase + pAddressOfNames[dwFunctionIndex]);
 
 		if (*(USHORT *)pszFunctionName == 0x775a)
-		{ // "Zw"
+		{ 
 			if (SyscallListLocal.dwCount < MAX_SYSCALLS)
 			{
 				SyscallListLocal.Entries[SyscallListLocal.dwCount].dwCryptedHash = _hash(pszFunctionName);
@@ -173,6 +189,7 @@ BOOL getSyscalls(PVOID pNtdllBase, Syscall *Syscalls[], DWORD dwSyscallArraySize
 			return FALSE;
 		}
 	}
-
 	return TRUE;
 }
+
+#endif

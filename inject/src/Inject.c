@@ -121,35 +121,34 @@ static DWORD GetProcessIdByName(const char *processName)
 			}
 		} while (Process32Next(snapshot, &entry));
 		if (pid == 0)
-		{										 // Reached end of list or Process32Next failed before finding
-			lastErrorFirstNext = GetLastError(); // Check if Process32Next failed
+		{
+			lastErrorFirstNext = GetLastError();
 		}
 	}
 	else
 	{
-		lastErrorFirstNext = GetLastError(); // Process32First failed
+		lastErrorFirstNext = GetLastError();
 	}
 	CloseHandle(snapshot);
 
 	if (pid == 0)
 	{
-		// Prioritize error from Process32First/Next if it occurred
 		if (lastErrorFirstNext != ERROR_SUCCESS && lastErrorFirstNext != ERROR_NO_MORE_FILES)
 		{
 			SetLastError(lastErrorFirstNext);
 		}
 		else if (lastErrorSnapshot != ERROR_SUCCESS)
-		{ // Should not happen if snapshot was valid
+		{
 			SetLastError(lastErrorSnapshot);
 		}
 		else
-		{ // No API error, process just not found
+		{
 			SetLastError(ERROR_NOT_FOUND);
 		}
 	}
 	else
 	{
-		SetLastError(ERROR_SUCCESS); // Explicitly set success if PID found
+		SetLastError(ERROR_SUCCESS);
 	}
 	return pid;
 }
@@ -240,7 +239,7 @@ static LPVOID ReadDllFileToBuffer(const char *filePath, DWORD *pdwFileSize)
 	{
 		PRINT_ERROR_NO_CODE("Invalid file size for DLL: %s", filePath);
 		CloseHandle(hFile);
-		SetLastError(ERROR_INVALID_DATA); // More specific error
+		SetLastError(ERROR_INVALID_DATA);
 		return NULL;
 	}
 	PRINT_STATUS("DLL file size: %lu bytes", *pdwFileSize);
@@ -286,7 +285,6 @@ static BOOL ParseArguments(int argc, char *argv[], INJECTION_CONFIG *config)
 	if (argc < 2)
 	{
 		config->spawnProcess = TRUE;
-		// exeToSpawn and dllPath use defaults
 	}
 	else
 	{
@@ -365,7 +363,7 @@ int main(int argc, char *argv[])
 	do
 	{
 		if (config.performWarmup)
-		{ // This flag is now set by ParseArguments
+		{
 			PROCESS_INFORMATION piWarmup = {0};
 			DWORD dwWarmupWaitTimeoutMs = 1000;
 			PRINT_STATUS("Performing warmup spawn of %s...", config.exeToSpawn);

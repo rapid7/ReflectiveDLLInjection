@@ -25,244 +25,323 @@
 // OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 //===============================================================================================//
+
 #include "LoadLibraryR.h"
 
 #ifdef __MINGW32__
 #define __try
-#define __except(x) if(0)
+#define __except(x) if (0)
 #endif
-//===============================================================================================//
-DWORD Rva2Offset( DWORD dwRva, UINT_PTR uiBaseAddress, BOOL is64 )
+
+static DWORD RvaToFileOffset(DWORD dwRva, PIMAGE_NT_HEADERS pNtHeaders)
 {
-	WORD wIndex                          = 0;
-	PIMAGE_SECTION_HEADER pSectionHeader = NULL;
-	PIMAGE_NT_HEADERS32 pNtHeaders32     = NULL;
-	PIMAGE_NT_HEADERS64 pNtHeaders64     = NULL;
+	PIMAGE_SECTION_HEADER pSectionHeader = IMAGE_FIRST_SECTION(pNtHeaders);
+	WORD wNumberOfSections = pNtHeaders->FileHeader.NumberOfSections;
+	WORD wIndex;
 
-	if (is64) {
-		pNtHeaders64 = (PIMAGE_NT_HEADERS64)(uiBaseAddress + ((PIMAGE_DOS_HEADER)uiBaseAddress)->e_lfanew);
-
-		pSectionHeader = (PIMAGE_SECTION_HEADER)((UINT_PTR)(&pNtHeaders64->OptionalHeader) + pNtHeaders64->FileHeader.SizeOfOptionalHeader);
-
-		if( dwRva < pSectionHeader[0].PointerToRawData )
-			return dwRva;
-
-		for( wIndex=0 ; wIndex < pNtHeaders64->FileHeader.NumberOfSections ; wIndex++ )
-		{
-			if( dwRva >= pSectionHeader[wIndex].VirtualAddress && dwRva < (pSectionHeader[wIndex].VirtualAddress + pSectionHeader[wIndex].SizeOfRawData) )
-				return ( dwRva - pSectionHeader[wIndex].VirtualAddress + pSectionHeader[wIndex].PointerToRawData );
-		}
-	}
-	else {
-		pNtHeaders32 = (PIMAGE_NT_HEADERS32)(uiBaseAddress + ((PIMAGE_DOS_HEADER)uiBaseAddress)->e_lfanew);
-
-		pSectionHeader = (PIMAGE_SECTION_HEADER)((UINT_PTR)(&pNtHeaders32->OptionalHeader) + pNtHeaders32->FileHeader.SizeOfOptionalHeader);
-
-		if( dwRva < pSectionHeader[0].PointerToRawData )
-			return dwRva;
-
-		for( wIndex=0 ; wIndex < pNtHeaders32->FileHeader.NumberOfSections ; wIndex++ )
-		{
-			if( dwRva >= pSectionHeader[wIndex].VirtualAddress && dwRva < (pSectionHeader[wIndex].VirtualAddress + pSectionHeader[wIndex].SizeOfRawData) )
-				return ( dwRva - pSectionHeader[wIndex].VirtualAddress + pSectionHeader[wIndex].PointerToRawData );
-		}
-	}
-
-	return 0;
-}
-//===============================================================================================//
-DWORD GetReflectiveLoaderOffset(VOID* lpReflectiveDllBuffer, LPCSTR cpReflectiveLoaderName)
-{
-	UINT_PTR uiBaseAddress = 0;
-	UINT_PTR uiExportDir = 0;
-	UINT_PTR uiNameArray = 0;
-	UINT_PTR uiAddressArray = 0;
-	UINT_PTR uiNameOrdinals = 0;
-	DWORD dwCounter = 0;
-	BOOL is64 = 0;
-
-	uiBaseAddress = (UINT_PTR)lpReflectiveDllBuffer;
-
-	// get the File Offset of the modules NT Header
-	uiExportDir = uiBaseAddress + ((PIMAGE_DOS_HEADER)uiBaseAddress)->e_lfanew;
-
-	// process a PE file based on its architecture
-	if (((PIMAGE_NT_HEADERS)uiExportDir)->OptionalHeader.Magic == 0x010B) // PE32
+	if (dwRva < pNtHeaders->OptionalHeader.SizeOfHeaders)
 	{
-		is64 = FALSE;
-		// uiNameArray = the address of the modules export directory entry
-		uiNameArray = (UINT_PTR) & ((PIMAGE_NT_HEADERS32)uiExportDir)->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
+		return dwRva;
 	}
-	else if (((PIMAGE_NT_HEADERS)uiExportDir)->OptionalHeader.Magic == 0x020B) // PE64
-	{
-		is64 = TRUE;
-		// uiNameArray = the address of the modules export directory entry
-		uiNameArray = (UINT_PTR) & ((PIMAGE_NT_HEADERS64)uiExportDir)->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
 
-	}
-	else
+	if (wNumberOfSections == 0)
 	{
 		return 0;
 	}
 
-	// get the File Offset of the export directory
-	uiExportDir = uiBaseAddress + Rva2Offset(((PIMAGE_DATA_DIRECTORY)uiNameArray)->VirtualAddress, uiBaseAddress, is64);
-
-	// get the File Offset for the array of name pointers
-	uiNameArray = uiBaseAddress + Rva2Offset(((PIMAGE_EXPORT_DIRECTORY)uiExportDir)->AddressOfNames, uiBaseAddress, is64);
-
-	// get the File Offset for the array of addresses
-	uiAddressArray = uiBaseAddress + Rva2Offset(((PIMAGE_EXPORT_DIRECTORY)uiExportDir)->AddressOfFunctions, uiBaseAddress, is64);
-
-	// get the File Offset for the array of name ordinals
-	uiNameOrdinals = uiBaseAddress + Rva2Offset(((PIMAGE_EXPORT_DIRECTORY)uiExportDir)->AddressOfNameOrdinals, uiBaseAddress, is64);
-
-	// test if we are importing by name or by ordinal...
-	if ((((DWORD_PTR)cpReflectiveLoaderName) >> 16) == 0)
+	for (wIndex = 0; wIndex < wNumberOfSections; wIndex++)
 	{
-		// import by ordinal...
-
-		// use the import ordinal (- export ordinal base) as an index into the array of addresses
-		uiAddressArray += ((IMAGE_ORDINAL((DWORD)(DWORD_PTR)cpReflectiveLoaderName) - ((PIMAGE_EXPORT_DIRECTORY)uiExportDir)->Base) * sizeof(DWORD));
-
-		// resolve the address for this imported function
-		return Rva2Offset(DEREF_32(uiAddressArray), uiBaseAddress, is64);
-	}
-
-	// import by name...
-	// get a counter for the number of exported functions...
-	dwCounter = ((PIMAGE_EXPORT_DIRECTORY)uiExportDir)->NumberOfNames;
-
-	// loop through all the exported functions to find the ReflectiveLoader
-	while (dwCounter--)
-	{
-		char* cpExportedFunctionName = (char*)(uiBaseAddress + Rva2Offset(DEREF_32(uiNameArray), uiBaseAddress, is64));
-
-		if (strstr(cpExportedFunctionName, cpReflectiveLoaderName) != NULL)
+		if (dwRva >= pSectionHeader[wIndex].VirtualAddress &&
+			dwRva < (pSectionHeader[wIndex].VirtualAddress + pSectionHeader[wIndex].Misc.VirtualSize))
 		{
-			// get the File Offset for the array of addresses
-			uiAddressArray = uiBaseAddress + Rva2Offset(((PIMAGE_EXPORT_DIRECTORY)uiExportDir)->AddressOfFunctions, uiBaseAddress, is64);
-
-			// use the functions name ordinal as an index into the array of name pointers
-			uiAddressArray += (DEREF_16(uiNameOrdinals) * sizeof(DWORD));
-
-			// return the File Offset to the ReflectiveLoader() functions code...
-			return Rva2Offset(DEREF_32(uiAddressArray), uiBaseAddress, is64);
-		}
-		// get the next exported function name
-		uiNameArray += sizeof(DWORD);
-
-		// get the next exported function name ordinal
-		uiNameOrdinals += sizeof(WORD);
-	}
-
-	return 0;
-}
-
-//===============================================================================================//
-// Loads a DLL image from memory via its exported ReflectiveLoader function
-HMODULE WINAPI LoadLibraryR( LPVOID lpBuffer, DWORD dwLength, LPCSTR cpReflectiveLoaderName )
-{
-	HMODULE hResult                    = NULL;
-	DWORD dwReflectiveLoaderOffset     = 0;
-	DWORD dwOldProtect1                = 0;
-	DWORD dwOldProtect2                = 0;
-	REFLECTIVELOADER pReflectiveLoader = NULL;
-	DLLMAIN pDllMain                   = NULL;
-
-	if( lpBuffer == NULL || dwLength == 0 )
-		return NULL;
-
-	__try
-	{
-		// check if the library has a ReflectiveLoader...
-		dwReflectiveLoaderOffset = GetReflectiveLoaderOffset( lpBuffer, cpReflectiveLoaderName );
-		if( dwReflectiveLoaderOffset != 0 )
-		{
-			pReflectiveLoader = (REFLECTIVELOADER)((UINT_PTR)lpBuffer + dwReflectiveLoaderOffset);
-
-			// we must VirtualProtect the buffer to RWX so we can execute the ReflectiveLoader...
-			// this assumes lpBuffer is the base address of the region of pages and dwLength the size of the region
-			if( VirtualProtect( lpBuffer, dwLength, PAGE_EXECUTE_READWRITE, &dwOldProtect1 ) )
+			if (pSectionHeader[wIndex].PointerToRawData != 0 &&
+				(dwRva - pSectionHeader[wIndex].VirtualAddress) < pSectionHeader[wIndex].SizeOfRawData)
 			{
-				// call the librarys ReflectiveLoader...
-				pDllMain = (DLLMAIN)pReflectiveLoader();
-				if( pDllMain != NULL )
-				{
-					// call the loaded librarys DllMain to get its HMODULE
-					// Dont call DLL_METASPLOIT_ATTACH/DLL_METASPLOIT_DETACH as that is for payloads only.
-					if( !pDllMain( NULL, DLL_QUERY_HMODULE, &hResult ) )
-						hResult = NULL;
-				}
-				// revert to the previous protection flags...
-				VirtualProtect( lpBuffer, dwLength, dwOldProtect1, &dwOldProtect2 );
+				return pSectionHeader[wIndex].PointerToRawData + (dwRva - pSectionHeader[wIndex].VirtualAddress);
+			}
+			else
+			{
+				return 0;
 			}
 		}
 	}
-	__except( EXCEPTION_EXECUTE_HANDLER )
+	return 0;
+}
+
+DWORD GetReflectiveLoaderOffset(LPVOID lpReflectiveDllBuffer, LPCSTR cpExportedFunctionName)
+{
+	UINT_PTR uiBaseAddress;
+	PIMAGE_DOS_HEADER pDosHeader;
+	PIMAGE_NT_HEADERS pNtHeaders;
+	UINT_PTR uiExportDirRVA;
+	PIMAGE_EXPORT_DIRECTORY pExportDirectory;
+	DWORD dwExportDirFileOffset;
+	UINT_PTR uiNameArrayRVA, uiAddressArrayRVA, uiNameOrdinalsRVA;
+	DWORD dwNameArrayFileOffset, dwAddressArrayFileOffset, dwNameOrdinalsFileOffset;
+	DWORD dwLoopIndex;
+	DWORD *pdwNameRVAs = NULL;
+	WORD *pwNameOrdinals = NULL;
+	DWORD *pdwFunctionRVAs = NULL;
+
+	if (!lpReflectiveDllBuffer || !cpExportedFunctionName)
 	{
-		hResult = NULL;
+		SetLastError(ERROR_INVALID_PARAMETER);
+		return 0;
 	}
 
+	uiBaseAddress = (UINT_PTR)lpReflectiveDllBuffer;
+	pDosHeader = (PIMAGE_DOS_HEADER)uiBaseAddress;
+	if (pDosHeader->e_magic != IMAGE_DOS_SIGNATURE)
+	{
+		SetLastError(ERROR_BAD_EXE_FORMAT);
+		return 0;
+	}
+
+	pNtHeaders = (PIMAGE_NT_HEADERS)(uiBaseAddress + pDosHeader->e_lfanew);
+	if (pNtHeaders->Signature != IMAGE_NT_SIGNATURE)
+	{
+		SetLastError(ERROR_BAD_EXE_FORMAT);
+		return 0;
+	}
+
+	if (pNtHeaders->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR32_MAGIC)
+	{
+		uiExportDirRVA = ((PIMAGE_NT_HEADERS32)pNtHeaders)->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
+	}
+	else if (pNtHeaders->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC)
+	{
+		uiExportDirRVA = ((PIMAGE_NT_HEADERS64)pNtHeaders)->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
+	}
+	else
+	{
+		SetLastError(ERROR_BAD_EXE_FORMAT);
+		return 0;
+	}
+
+	if (uiExportDirRVA == 0)
+	{
+		SetLastError(ERROR_RESOURCE_DATA_NOT_FOUND);
+		return 0;
+	}
+	dwExportDirFileOffset = RvaToFileOffset((DWORD)uiExportDirRVA, pNtHeaders);
+	if (dwExportDirFileOffset == 0 && uiExportDirRVA != 0)
+	{
+		SetLastError(ERROR_INVALID_ADDRESS);
+		return 0;
+	}
+	pExportDirectory = (PIMAGE_EXPORT_DIRECTORY)(uiBaseAddress + dwExportDirFileOffset);
+
+	uiNameArrayRVA = pExportDirectory->AddressOfNames;
+	uiAddressArrayRVA = pExportDirectory->AddressOfFunctions;
+	uiNameOrdinalsRVA = pExportDirectory->AddressOfNameOrdinals;
+
+	if (uiAddressArrayRVA == 0)
+	{
+		SetLastError(ERROR_RESOURCE_DATA_NOT_FOUND);
+		return 0;
+	}
+	dwAddressArrayFileOffset = RvaToFileOffset((DWORD)uiAddressArrayRVA, pNtHeaders);
+	if (dwAddressArrayFileOffset == 0 && uiAddressArrayRVA != 0)
+	{
+		SetLastError(ERROR_INVALID_ADDRESS);
+		return 0;
+	}
+	pdwFunctionRVAs = (DWORD *)(uiBaseAddress + dwAddressArrayFileOffset);
+
+	if ((((DWORD_PTR)cpExportedFunctionName) >> 16) != 0)
+	{
+		if (uiNameArrayRVA == 0 || uiNameOrdinalsRVA == 0 || pExportDirectory->NumberOfNames == 0)
+		{
+			SetLastError(ERROR_PROC_NOT_FOUND);
+			return 0;
+		}
+		dwNameArrayFileOffset = RvaToFileOffset((DWORD)uiNameArrayRVA, pNtHeaders);
+		if (dwNameArrayFileOffset == 0 && uiNameArrayRVA != 0)
+		{
+			SetLastError(ERROR_INVALID_ADDRESS);
+			return 0;
+		}
+		pdwNameRVAs = (DWORD *)(uiBaseAddress + dwNameArrayFileOffset);
+
+		dwNameOrdinalsFileOffset = RvaToFileOffset((DWORD)uiNameOrdinalsRVA, pNtHeaders);
+		if (dwNameOrdinalsFileOffset == 0 && uiNameOrdinalsRVA != 0)
+		{
+			SetLastError(ERROR_INVALID_ADDRESS);
+			return 0;
+		}
+		pwNameOrdinals = (WORD *)(uiBaseAddress + dwNameOrdinalsFileOffset);
+	}
+
+	if ((((DWORD_PTR)cpExportedFunctionName) >> 16) == 0)
+	{
+		DWORD dwOrdinalBase = pExportDirectory->Base;
+		DWORD dwTargetOrdinal = IMAGE_ORDINAL((DWORD_PTR)cpExportedFunctionName);
+
+		if (dwTargetOrdinal < dwOrdinalBase || dwTargetOrdinal >= (dwOrdinalBase + pExportDirectory->NumberOfFunctions))
+		{
+			SetLastError(ERROR_PROC_NOT_FOUND);
+			return 0;
+		}
+		DWORD dwFunctionRVA = pdwFunctionRVAs[dwTargetOrdinal - dwOrdinalBase];
+		if (dwFunctionRVA == 0)
+		{
+			SetLastError(ERROR_PROC_NOT_FOUND);
+			return 0;
+		}
+		return RvaToFileOffset(dwFunctionRVA, pNtHeaders);
+	}
+	else
+	{
+		if (!pdwNameRVAs || !pwNameOrdinals)
+		{
+			SetLastError(ERROR_PROC_NOT_FOUND);
+			return 0;
+		}
+		for (dwLoopIndex = 0; dwLoopIndex < pExportDirectory->NumberOfNames; dwLoopIndex++)
+		{
+			DWORD dwNameRVA = pdwNameRVAs[dwLoopIndex];
+			if (dwNameRVA == 0)
+				continue;
+
+			DWORD dwNameFileOffset = RvaToFileOffset(dwNameRVA, pNtHeaders);
+			if (dwNameFileOffset == 0 && dwNameRVA != 0)
+				continue;
+
+			char *cpCurrentExportedFunctionName = (char *)(uiBaseAddress + dwNameFileOffset);
+			if (strcmp(cpCurrentExportedFunctionName, cpExportedFunctionName) == 0)
+			{
+				WORD wNameOrdinal = pwNameOrdinals[dwLoopIndex];
+				if (wNameOrdinal >= pExportDirectory->NumberOfFunctions)
+				{
+					SetLastError(ERROR_PROC_NOT_FOUND);
+					return 0;
+				}
+				DWORD dwFunctionRVA = pdwFunctionRVAs[wNameOrdinal];
+				if (dwFunctionRVA == 0)
+				{
+					SetLastError(ERROR_PROC_NOT_FOUND);
+					return 0;
+				}
+				return RvaToFileOffset(dwFunctionRVA, pNtHeaders);
+			}
+		}
+	}
+	SetLastError(ERROR_PROC_NOT_FOUND);
+	return 0;
+}
+
+HMODULE WINAPI LoadLibraryR(LPVOID lpBuffer, DWORD dwLength, LPCSTR cpReflectiveLoaderName)
+{
+	HMODULE hResult = NULL;
+	DWORD dwReflectiveLoaderOffset;
+	DWORD dwOldProtect1, dwOldProtect2;
+	REFLECTIVELOADER pReflectiveLoader;
+
+	if (lpBuffer == NULL || dwLength == 0 || cpReflectiveLoaderName == NULL)
+	{
+		SetLastError(ERROR_INVALID_PARAMETER);
+		return NULL;
+	}
+
+	__try
+	{
+		dwReflectiveLoaderOffset = GetReflectiveLoaderOffset(lpBuffer, cpReflectiveLoaderName);
+		if (dwReflectiveLoaderOffset != 0)
+		{
+			pReflectiveLoader = (REFLECTIVELOADER)((UINT_PTR)lpBuffer + dwReflectiveLoaderOffset);
+			if (VirtualProtect(lpBuffer, dwLength, PAGE_EXECUTE_READWRITE, &dwOldProtect1))
+			{
+				hResult = (HMODULE)pReflectiveLoader(NULL);
+				VirtualProtect(lpBuffer, dwLength, dwOldProtect1, &dwOldProtect2);
+			}
+			else
+			{
+				hResult = NULL;
+			}
+		}
+		else
+		{
+			hResult = NULL;
+		}
+	}
+	__except (EXCEPTION_EXECUTE_HANDLER)
+	{
+		SetLastError(GetExceptionCode());
+		hResult = NULL;
+	}
 	return hResult;
 }
-//===============================================================================================//
-// Loads a PE image from memory into the address space of a host process via the image's exported ReflectiveLoader function
-// Note: You must compile whatever you are injecting with REFLECTIVEDLLINJECTION_VIA_LOADREMOTELIBRARYR
-//       defined in order to use the correct RDI prototypes.
-// Note: The hProcess handle must have these access rights: PROCESS_CREATE_THREAD | PROCESS_QUERY_INFORMATION |
-//       PROCESS_VM_OPERATION | PROCESS_VM_WRITE | PROCESS_VM_READ
-// Note: If you are passing in an lpParameter value, if it is a pointer, remember it is for a different address space.
-// Note: This function currently cant inject accross architectures, but only to architectures which are the
-//       same as the arch this function is compiled as, e.g. x86->x86 and x64->x64 but not x64->x86 or x86->x64.
-HANDLE WINAPI LoadRemoteLibraryR( HANDLE hProcess, LPVOID lpBuffer, DWORD dwLength, LPCSTR cpReflectiveLoaderName, LPVOID lpParameter )
+
+HANDLE WINAPI LoadRemoteLibraryR(HANDLE hProcess, LPVOID lpBuffer, DWORD dwLength,
+								 DWORD dwReflectiveLoaderFileOffset, LPVOID lpParameter)
 {
-	LPVOID lpRemoteLibraryBuffer              = NULL;
-	LPTHREAD_START_ROUTINE lpReflectiveLoader = NULL;
-	HANDLE hThread                            = NULL;
-	DWORD dwReflectiveLoaderOffset            = 0;
-	DWORD dwThreadId                          = 0;
-	DWORD dwOldProt;
+	LPVOID lpRemoteLibraryBuffer = NULL;
+	LPTHREAD_START_ROUTINE lpRemoteReflectiveLoader = NULL;
+	HANDLE hRemoteThread = NULL;
+	DWORD dwThreadId;
+	DWORD dwOldProtection;
+	DWORD dwLastError = ERROR_SUCCESS;
+
+	if (!hProcess || !lpBuffer || !dwLength || dwReflectiveLoaderFileOffset == 0)
+	{
+		SetLastError(ERROR_INVALID_PARAMETER);
+		return NULL;
+	}
+	if (dwReflectiveLoaderFileOffset >= dwLength)
+	{
+		SetLastError(ERROR_INVALID_PARAMETER);
+		return NULL;
+	}
 
 	__try
 	{
 		do
 		{
-			if( !hProcess  || !lpBuffer || !dwLength )
+			lpRemoteLibraryBuffer = VirtualAllocEx(hProcess, NULL, dwLength, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+			if (!lpRemoteLibraryBuffer)
+			{
+				dwLastError = GetLastError();
 				break;
+			}
 
-			// check if the library has a ReflectiveLoader...
-			dwReflectiveLoaderOffset = GetReflectiveLoaderOffset( lpBuffer, cpReflectiveLoaderName);
-			if( !dwReflectiveLoaderOffset )
+			if (!WriteProcessMemory(hProcess, lpRemoteLibraryBuffer, lpBuffer, dwLength, NULL))
+			{
+				dwLastError = GetLastError();
 				break;
+			}
 
-			// alloc memory (RW) in the host process for the image...
-			lpRemoteLibraryBuffer = VirtualAllocEx( hProcess, NULL, dwLength, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
-			if( !lpRemoteLibraryBuffer )
+			if (!VirtualProtectEx(hProcess, lpRemoteLibraryBuffer, dwLength, PAGE_EXECUTE_READWRITE, &dwOldProtection))
+			{
+				dwLastError = GetLastError();
 				break;
+			}
 
-			// write the image into the host process...
-			if( !WriteProcessMemory( hProcess, lpRemoteLibraryBuffer, lpBuffer, dwLength, NULL ) )
-				break;
+			lpRemoteReflectiveLoader = (LPTHREAD_START_ROUTINE)((UINT_PTR)lpRemoteLibraryBuffer + dwReflectiveLoaderFileOffset);
 
-			// change the permissions to (RX) to bypass W^X protections
-			if (!VirtualProtectEx(hProcess, lpRemoteLibraryBuffer, dwLength, PAGE_EXECUTE_READ, &dwOldProt))
-				break;
+			hRemoteThread = CreateRemoteThread(hProcess, NULL, 0, lpRemoteReflectiveLoader, lpParameter, 0, &dwThreadId);
+			if (!hRemoteThread)
+			{
+				dwLastError = GetLastError();
+			}
 
-			// add the offset to ReflectiveLoader() to the remote library address...
-			lpReflectiveLoader = (LPTHREAD_START_ROUTINE)( (ULONG_PTR)lpRemoteLibraryBuffer + dwReflectiveLoaderOffset );
-
-			// create a remote thread in the host process to call the ReflectiveLoader!
-			hThread = CreateRemoteThread( hProcess, NULL, 1024*1024, lpReflectiveLoader, lpParameter, (DWORD_PTR)NULL, &dwThreadId );
-
-		} while( 0 );
-
+		} while (0);
 	}
-	__except( EXCEPTION_EXECUTE_HANDLER )
+	__except (EXCEPTION_EXECUTE_HANDLER)
 	{
-		hThread = NULL;
+		dwLastError = GetExceptionCode();
+		hRemoteThread = NULL;
 	}
 
-	return hThread;
+	if (!hRemoteThread)
+	{
+		if (lpRemoteLibraryBuffer && hProcess)
+		{
+			VirtualFreeEx(hProcess, lpRemoteLibraryBuffer, 0, MEM_RELEASE);
+		}
+		if (dwLastError != ERROR_SUCCESS)
+		{
+			SetLastError(dwLastError);
+		}
+	}
+	return hRemoteThread;
 }
-//===============================================================================================//

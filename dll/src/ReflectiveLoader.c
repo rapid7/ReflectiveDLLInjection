@@ -27,15 +27,15 @@
 //===============================================================================================//
 
 #if defined(_M_ARM64) && defined(_MSC_VER)
-#include <arm64intr.h> 
+#include <arm64intr.h>
 #endif
 
-#include "ReflectiveLoader.h" 
-#include "DirectSyscall.c"    
+#include "ReflectiveLoader.h"
+#include "DirectSyscall.c"
 
 HINSTANCE hAppInstance = NULL;
 
-#if !defined(_M_ARM64) 
+#if !defined(_M_ARM64)
     #ifdef __MINGW32__
     #define WIN_GET_CALLER() __builtin_extract_return_addr(__builtin_return_address(0))
     #else
@@ -55,238 +55,242 @@ HINSTANCE hAppInstance = NULL;
 
 #if defined(_M_ARM64)
 
-
 __declspec(noinline) ULONG_PTR GetIp_ARM64(VOID)
 {
-	return (ULONG_PTR)_ReturnAddress();
+    return (ULONG_PTR)_ReturnAddress();
 }
-
 
 static ULONG_PTR Arm64ReflectiveLoaderLogic(LPVOID lpLoaderParameter)
 {
-	LOADLIBRARYA_FN fnLoadLibraryA_arm64 = NULL;
-	GETPROCADDRESS_FN fnGetProcAddress_arm64 = NULL;
-	VIRTUALALLOC_FN fnVirtualAlloc_arm64 = NULL;
-	NTFLUSHINSTRUCTIONCACHE_FN fnNtFlushInstructionCache_arm64 = NULL;
+    LOADLIBRARYA_FN fnLoadLibraryA = NULL;
+    GETPROCADDRESS_FN fnGetProcAddress = NULL;
+    VIRTUALALLOC_FN fnVirtualAlloc = NULL;
+    NTFLUSHINSTRUCTIONCACHE_FN fnNtFlushInstructionCache = NULL;
 
-	ULONG_PTR uiDllBase;
-	ULONG_PTR uiPeb_arm64;
-	ULONG_PTR uiKernel32Base_arm64 = 0;
-	ULONG_PTR uiNtdllBase_arm64 = 0;
+    ULONG_PTR uiDllBase;
+    ULONG_PTR uiPeb;
+    ULONG_PTR uiKernel32Base = 0;
+    ULONG_PTR uiNtdllBase = 0;
 
-	uiDllBase = GetIp_ARM64();
+    uiDllBase = GetIp_ARM64();
 
-	while (TRUE)
-	{
-		if (((PIMAGE_DOS_HEADER)uiDllBase)->e_magic == IMAGE_DOS_SIGNATURE)
-		{
-			ULONG_PTR uiHeader = uiDllBase + ((PIMAGE_DOS_HEADER)uiDllBase)->e_lfanew;
-			if (((PIMAGE_NT_HEADERS)uiHeader)->Signature == IMAGE_NT_SIGNATURE)
-				break;
-		}
-		uiDllBase--;
-		if (!uiDllBase) return 0;
-	}
+    while (TRUE)
+    {
+        if (((PIMAGE_DOS_HEADER)uiDllBase)->e_magic == IMAGE_DOS_SIGNATURE)
+        {
+            ULONG_PTR uiHeader = uiDllBase + ((PIMAGE_DOS_HEADER)uiDllBase)->e_lfanew;
+            if (((PIMAGE_NT_HEADERS)uiHeader)->Signature == IMAGE_NT_SIGNATURE)
+                break;
+        }
+        uiDllBase--;
+        if (!uiDllBase) return 0;
+    }
 
-	ULONG_PTR tebBase = 0;
 #if defined(_MSC_VER)
-	tebBase = __readx18word(0); 
-	uiPeb_arm64 = *(ULONG_PTR *)(tebBase + 0x60);
+    uiPeb = __readx18qword(0x60);
 #elif defined(__GNUC__) || defined(__clang__)
-	#warning "ARM64 PEB access via X18 needs specific intrinsic for this compiler in Arm64ReflectiveLoaderLogic"
-	__asm__ ("mrs %0, TPIDR_EL0" : "=r" (tebBase));
-    uiPeb_arm64 = *(ULONG_PTR *)(tebBase + 0x60);
-    if(!uiPeb_arm64) return 0;
+    #warning "ARM64 PEB access via X18 needs specific intrinsic for __readx18qword for this compiler in Arm64ReflectiveLoaderLogic"
+    // Fallback or error for __readx18qword not being available for GCC/Clang directly for PEB+0x60.
+    // A common way is via TEB:
+    ULONG_PTR tebBase = 0;
+	__asm__ ("mrs %0, TPIDR_EL0" : "=r" (tebBase)); // Read TEB base from TPIDR_EL0
+    if(!tebBase) return 0;
+    uiPeb = *(ULONG_PTR *)(tebBase + 0x60); // PEB is at TEB + 0x60
+    if(!uiPeb) return 0;
 #else
-	#error "Unsupported ARM64 compiler for PEB access via X18 in Arm64ReflectiveLoaderLogic"
+	#error "Unsupported ARM64 compiler for PEB access (__readx18qword) in Arm64ReflectiveLoaderLogic"
 	return 0;
 #endif
 
-	PPEB_LDR_ARM64 pPebTyped_arm64 = (PPEB_LDR_ARM64)uiPeb_arm64;
-	if (!pPebTyped_arm64 || !pPebTyped_arm64->Ldr) return 0;
+    PPEB_LDR_DATA_LDR pLdr = ((PPEB_LDR)uiPeb)->Ldr;
+    if (!pLdr) return 0;
 
-	PPEB_LDR_DATA_LDR_ARM64 pLdr_arm64 = pPebTyped_arm64->Ldr;
-	PLIST_ENTRY pModuleList_arm64 = &(pLdr_arm64->InMemoryOrderModuleList);
-	PLIST_ENTRY pCurrentEntry_arm64 = pModuleList_arm64->Flink;
+    PLIST_ENTRY pModuleList = &(pLdr->InMemoryOrderModuleList);
+    PLIST_ENTRY pCurrentEntry = pModuleList->Flink;
 
-	while (pCurrentEntry_arm64 != pModuleList_arm64)
-	{
-		PLDR_DATA_TABLE_ENTRY_LDR_ARM64 pEntry_arm64 = (PLDR_DATA_TABLE_ENTRY_LDR_ARM64)CONTAINING_RECORD(pCurrentEntry_arm64, LDR_DATA_TABLE_ENTRY_LDR_ARM64, InMemoryOrderLinks);
-		if (pEntry_arm64->BaseDllName.Length > 0 && pEntry_arm64->BaseDllName.Buffer != NULL)
-		{
-			DWORD dwModuleHash = 0;
-			USHORT usCounter = pEntry_arm64->BaseDllName.Length;
-			BYTE *pNameByte = (BYTE *)pEntry_arm64->BaseDllName.Buffer;
+    while (pCurrentEntry != pModuleList)
+    {
+        PLDR_DATA_TABLE_ENTRY_LDR pEntry = (PLDR_DATA_TABLE_ENTRY_LDR)CONTAINING_RECORD(pCurrentEntry, LDR_DATA_TABLE_ENTRY_LDR, InMemoryOrderLinks);
+        if (pEntry->BaseDllName.Length > 0 && pEntry->BaseDllName.Buffer != NULL)
+        {
+            DWORD dwModuleHash = 0;
+            USHORT usCounter = pEntry->BaseDllName.Length;
+            BYTE *pNameByte = (BYTE *)pEntry->BaseDllName.Buffer;
 
-			do
-			{
-				dwModuleHash = ror_dword_loader_arm64(dwModuleHash);
-				if (*pNameByte >= 'a' && *pNameByte <= 'z')
-				{
-					dwModuleHash += (*pNameByte - 0x20);
-				}
-				else
-				{
-					dwModuleHash += *pNameByte;
-				}
-				pNameByte++;
-			} while (--usCounter);
+            do
+            {
+                dwModuleHash = ror_dword_loader(dwModuleHash);
+                if (*pNameByte >= 'a' && *pNameByte <= 'z')
+                {
+                    dwModuleHash += (*pNameByte - 0x20);
+                }
+                else
+                {
+                    dwModuleHash += *pNameByte;
+                }
+                pNameByte++;
+            } while (--usCounter);
 
-			if (dwModuleHash == KERNEL32DLL_HASH_ARM64)
-			{
-				uiKernel32Base_arm64 = (ULONG_PTR)pEntry_arm64->DllBase;
-			}
-			else if (dwModuleHash == NTDLLDLL_HASH_ARM64)
-			{
-				uiNtdllBase_arm64 = (ULONG_PTR)pEntry_arm64->DllBase;
-			}
-		}
-		if (uiKernel32Base_arm64 && uiNtdllBase_arm64) break;
-		pCurrentEntry_arm64 = pCurrentEntry_arm64->Flink;
-	}
+            if (dwModuleHash == KERNEL32DLL_HASH)
+            {
+                uiKernel32Base = (ULONG_PTR)pEntry->DllBase;
+            }
+            else if (dwModuleHash == NTDLLDLL_HASH)
+            {
+                uiNtdllBase = (ULONG_PTR)pEntry->DllBase;
+            }
+        }
+        if (uiKernel32Base && uiNtdllBase)
+            break;
+        pCurrentEntry = pCurrentEntry->Flink;
+    }
 
-	if (!uiKernel32Base_arm64 || !uiNtdllBase_arm64) return 0;
+    if (!uiKernel32Base || !uiNtdllBase)
+        return 0;
 
-	PIMAGE_NT_HEADERS pOldNtHeaders_arm64 = (PIMAGE_NT_HEADERS)(uiDllBase + ((PIMAGE_DOS_HEADER)uiDllBase)->e_lfanew);
+    PIMAGE_NT_HEADERS pOldNtHeaders = (PIMAGE_NT_HEADERS)(uiDllBase + ((PIMAGE_DOS_HEADER)uiDllBase)->e_lfanew);
+    ULONG_PTR uiExportDir = uiKernel32Base + ((PIMAGE_NT_HEADERS)(uiKernel32Base + ((PIMAGE_DOS_HEADER)uiKernel32Base)->e_lfanew))->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
+    PIMAGE_EXPORT_DIRECTORY pExportDirectory = (PIMAGE_EXPORT_DIRECTORY)uiExportDir;
+    ULONG_PTR uiAddressOfNames = uiKernel32Base + pExportDirectory->AddressOfNames;
+    ULONG_PTR uiAddressOfFunctions = uiKernel32Base + pExportDirectory->AddressOfFunctions;
+    ULONG_PTR uiAddressOfNameOrdinals = uiKernel32Base + pExportDirectory->AddressOfNameOrdinals;
 
-	ULONG_PTR uiExportDir_arm64 = uiKernel32Base_arm64 + ((PIMAGE_NT_HEADERS)(uiKernel32Base_arm64 + ((PIMAGE_DOS_HEADER)uiKernel32Base_arm64)->e_lfanew))->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
-	PIMAGE_EXPORT_DIRECTORY pExportDirectory_arm64 = (PIMAGE_EXPORT_DIRECTORY)uiExportDir_arm64;
-	ULONG_PTR uiAddressOfNames_arm64 = uiKernel32Base_arm64 + pExportDirectory_arm64->AddressOfNames;
-	ULONG_PTR uiAddressOfFunctions_arm64 = uiKernel32Base_arm64 + pExportDirectory_arm64->AddressOfFunctions;
-	ULONG_PTR uiAddressOfNameOrdinals_arm64 = uiKernel32Base_arm64 + pExportDirectory_arm64->AddressOfNameOrdinals;
+    for (DWORD i = 0; i < pExportDirectory->NumberOfNames; i++)
+    {
+        char *cName = (char *)(uiKernel32Base + ((DWORD *)uiAddressOfNames)[i]);
+        DWORD dwHashVal = hash_string_loader(cName);
+        if (dwHashVal == LOADLIBRARYA_HASH)
+            fnLoadLibraryA = (LOADLIBRARYA_FN)(uiKernel32Base + ((DWORD *)uiAddressOfFunctions)[((WORD *)uiAddressOfNameOrdinals)[i]]);
+        else if (dwHashVal == GETPROCADDRESS_HASH)
+            fnGetProcAddress = (GETPROCADDRESS_FN)(uiKernel32Base + ((DWORD *)uiAddressOfFunctions)[((WORD *)uiAddressOfNameOrdinals)[i]]);
+        else if (dwHashVal == VIRTUALALLOC_HASH)
+            fnVirtualAlloc = (VIRTUALALLOC_FN)(uiKernel32Base + ((DWORD *)uiAddressOfFunctions)[((WORD *)uiAddressOfNameOrdinals)[i]]);
+        if (fnLoadLibraryA && fnGetProcAddress && fnVirtualAlloc)
+            break;
+    }
 
-	for (DWORD i = 0; i < pExportDirectory_arm64->NumberOfNames; i++)
-	{
-		char *cName = (char *)(uiKernel32Base_arm64 + ((DWORD *)uiAddressOfNames_arm64)[i]);
-		DWORD dwHashVal = hash_string_loader_arm64(cName);
-		if (dwHashVal == LOADLIBRARYA_HASH_ARM64)
-			fnLoadLibraryA_arm64 = (LOADLIBRARYA_FN)(uiKernel32Base_arm64 + ((DWORD *)uiAddressOfFunctions_arm64)[((WORD *)uiAddressOfNameOrdinals_arm64)[i]]);
-		else if (dwHashVal == GETPROCADDRESS_HASH_ARM64)
-			fnGetProcAddress_arm64 = (GETPROCADDRESS_FN)(uiKernel32Base_arm64 + ((DWORD *)uiAddressOfFunctions_arm64)[((WORD *)uiAddressOfNameOrdinals_arm64)[i]]);
-		else if (dwHashVal == VIRTUALALLOC_HASH_ARM64)
-			fnVirtualAlloc_arm64 = (VIRTUALALLOC_FN)(uiKernel32Base_arm64 + ((DWORD *)uiAddressOfFunctions_arm64)[((WORD *)uiAddressOfNameOrdinals_arm64)[i]]);
-		if (fnLoadLibraryA_arm64 && fnGetProcAddress_arm64 && fnVirtualAlloc_arm64) break;
-	}
+    if (!fnLoadLibraryA || !fnGetProcAddress || !fnVirtualAlloc)
+        return 0;
 
-	if (!fnLoadLibraryA_arm64 || !fnGetProcAddress_arm64 || !fnVirtualAlloc_arm64) return 0;
+    uiExportDir = uiNtdllBase + ((PIMAGE_NT_HEADERS)(uiNtdllBase + ((PIMAGE_DOS_HEADER)uiNtdllBase)->e_lfanew))->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
+    pExportDirectory = (PIMAGE_EXPORT_DIRECTORY)uiExportDir;
+    uiAddressOfNames = uiNtdllBase + pExportDirectory->AddressOfNames;
+    uiAddressOfFunctions = uiNtdllBase + pExportDirectory->AddressOfFunctions;
+    uiAddressOfNameOrdinals = uiNtdllBase + pExportDirectory->AddressOfNameOrdinals;
 
-	uiExportDir_arm64 = uiNtdllBase_arm64 + ((PIMAGE_NT_HEADERS)(uiNtdllBase_arm64 + ((PIMAGE_DOS_HEADER)uiNtdllBase_arm64)->e_lfanew))->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
-	pExportDirectory_arm64 = (PIMAGE_EXPORT_DIRECTORY)uiExportDir_arm64;
-	uiAddressOfNames_arm64 = uiNtdllBase_arm64 + pExportDirectory_arm64->AddressOfNames;
-	uiAddressOfFunctions_arm64 = uiNtdllBase_arm64 + pExportDirectory_arm64->AddressOfFunctions;
-	uiAddressOfNameOrdinals_arm64 = uiNtdllBase_arm64 + pExportDirectory_arm64->AddressOfNameOrdinals;
+    for (DWORD i = 0; i < pExportDirectory->NumberOfNames; i++)
+    {
+        char *cName = (char *)(uiNtdllBase + ((DWORD *)uiAddressOfNames)[i]);
+        if (hash_string_loader(cName) == NTFLUSHINSTRUCTIONCACHE_HASH)
+        {
+            fnNtFlushInstructionCache = (NTFLUSHINSTRUCTIONCACHE_FN)(uiNtdllBase + ((DWORD *)uiAddressOfFunctions)[((WORD *)uiAddressOfNameOrdinals)[i]]);
+            break;
+        }
+    }
 
-	for (DWORD i = 0; i < pExportDirectory_arm64->NumberOfNames; i++)
-	{
-		char *cName = (char *)(uiNtdllBase_arm64 + ((DWORD *)uiAddressOfNames_arm64)[i]);
-		if (hash_string_loader_arm64(cName) == NTFLUSHINSTRUCTIONCACHE_HASH_ARM64)
-		{
-			fnNtFlushInstructionCache_arm64 = (NTFLUSHINSTRUCTIONCACHE_FN)(uiNtdllBase_arm64 + ((DWORD *)uiAddressOfFunctions_arm64)[((WORD *)uiAddressOfNameOrdinals_arm64)[i]]);
-			break;
-		}
-	}
+    if (!fnNtFlushInstructionCache)
+        return 0;
 
-	if (!fnNtFlushInstructionCache_arm64) return 0;
+    ULONG_PTR uiNewImageBase = (ULONG_PTR)fnVirtualAlloc(NULL, pOldNtHeaders->OptionalHeader.SizeOfImage, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+    if (!uiNewImageBase)
+        return 0;
 
-	ULONG_PTR uiNewImageBase_arm64 = (ULONG_PTR)fnVirtualAlloc_arm64(NULL, pOldNtHeaders_arm64->OptionalHeader.SizeOfImage, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-	if (!uiNewImageBase_arm64) return 0;
+    for (DWORD i = 0; i < pOldNtHeaders->OptionalHeader.SizeOfHeaders; i++)
+    {
+        ((BYTE *)uiNewImageBase)[i] = ((BYTE *)uiDllBase)[i];
+    }
 
-	for (DWORD i = 0; i < pOldNtHeaders_arm64->OptionalHeader.SizeOfHeaders; i++)
-	{
-		((BYTE *)uiNewImageBase_arm64)[i] = ((BYTE *)uiDllBase)[i];
-	}
+    PIMAGE_SECTION_HEADER pSectionHeader = (PIMAGE_SECTION_HEADER)((ULONG_PTR)&pOldNtHeaders->OptionalHeader + pOldNtHeaders->FileHeader.SizeOfOptionalHeader);
+    for (WORD i = 0; i < pOldNtHeaders->FileHeader.NumberOfSections; i++)
+    {
+        for (DWORD j = 0; j < pSectionHeader[i].SizeOfRawData; j++)
+        {
+            ((BYTE *)(uiNewImageBase + pSectionHeader[i].VirtualAddress))[j] = ((BYTE *)(uiDllBase + pSectionHeader[i].PointerToRawData))[j];
+        }
+    }
 
-	PIMAGE_SECTION_HEADER pSectionHeader_arm64 = (PIMAGE_SECTION_HEADER)((ULONG_PTR)&pOldNtHeaders_arm64->OptionalHeader + pOldNtHeaders_arm64->FileHeader.SizeOfOptionalHeader);
-	for (WORD i = 0; i < pOldNtHeaders_arm64->FileHeader.NumberOfSections; i++)
-	{
-		for (DWORD j = 0; j < pSectionHeader_arm64[i].SizeOfRawData; j++)
-		{
-			((BYTE *)(uiNewImageBase_arm64 + pSectionHeader_arm64[i].VirtualAddress))[j] = ((BYTE *)(uiDllBase + pSectionHeader_arm64[i].PointerToRawData))[j];
-		}
-	}
+    ULONG_PTR uiDelta = uiNewImageBase - pOldNtHeaders->OptionalHeader.ImageBase;
+    PIMAGE_DATA_DIRECTORY pRelocationData = &pOldNtHeaders->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC];
 
-	ULONG_PTR uiDelta_arm64 = uiNewImageBase_arm64 - pOldNtHeaders_arm64->OptionalHeader.ImageBase;
-	PIMAGE_DATA_DIRECTORY pRelocationData_arm64 = &pOldNtHeaders_arm64->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC];
+    if (pRelocationData->Size > 0 && uiDelta != 0)
+    {
+        PIMAGE_BASE_RELOCATION pRelocBlock = (PIMAGE_BASE_RELOCATION)(uiNewImageBase + pRelocationData->VirtualAddress);
+        while (pRelocBlock->VirtualAddress)
+        {
+            DWORD dwEntryCount = (pRelocBlock->SizeOfBlock - sizeof(IMAGE_BASE_RELOCATION)) / sizeof(IMAGE_RELOC_LDR);
+            PIMAGE_RELOC_LDR pRelocEntry = (PIMAGE_RELOC_LDR)((ULONG_PTR)pRelocBlock + sizeof(IMAGE_BASE_RELOCATION));
+            for (DWORD k = 0; k < dwEntryCount; k++)
+            {
+                if (pRelocEntry[k].type == IMAGE_REL_BASED_DIR64)
+                {
+                    *(ULONG_PTR *)(uiNewImageBase + pRelocBlock->VirtualAddress + pRelocEntry[k].offset) += uiDelta;
+                }
+            }
+            pRelocBlock = (PIMAGE_BASE_RELOCATION)((ULONG_PTR)pRelocBlock + pRelocBlock->SizeOfBlock);
+        }
+    }
 
-	if (pRelocationData_arm64->Size > 0 && uiDelta_arm64 != 0)
-	{
-		PIMAGE_BASE_RELOCATION pRelocBlock_arm64 = (PIMAGE_BASE_RELOCATION)(uiNewImageBase_arm64 + pRelocationData_arm64->VirtualAddress);
-		while (pRelocBlock_arm64->VirtualAddress)
-		{
-			DWORD dwEntryCount_arm64 = (pRelocBlock_arm64->SizeOfBlock - sizeof(IMAGE_BASE_RELOCATION)) / sizeof(IMAGE_RELOC_LDR_ARM64);
-			PIMAGE_RELOC_LDR_ARM64 pRelocEntry_arm64 = (PIMAGE_RELOC_LDR_ARM64)((ULONG_PTR)pRelocBlock_arm64 + sizeof(IMAGE_BASE_RELOCATION));
-			for (DWORD k = 0; k < dwEntryCount_arm64; k++)
-			{
-				if (pRelocEntry_arm64[k].type == IMAGE_REL_BASED_DIR64)
-				{
-					*(ULONG_PTR *)(uiNewImageBase_arm64 + pRelocBlock_arm64->VirtualAddress + pRelocEntry_arm64[k].offset) += uiDelta_arm64;
-				}
-			}
-			pRelocBlock_arm64 = (PIMAGE_BASE_RELOCATION)((ULONG_PTR)pRelocBlock_arm64 + pRelocBlock_arm64->SizeOfBlock);
-		}
-	}
+    PIMAGE_DATA_DIRECTORY pImportData = &pOldNtHeaders->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
+    if (pImportData->Size > 0)
+    {
+        PIMAGE_IMPORT_DESCRIPTOR pImportDesc = (PIMAGE_IMPORT_DESCRIPTOR)(uiNewImageBase + pImportData->VirtualAddress);
+        while (pImportDesc->Name)
+        {
+            char *sModuleName = (char *)(uiNewImageBase + pImportDesc->Name);
+            HINSTANCE hModule = fnLoadLibraryA(sModuleName);
+            if (hModule)
+            {
+                PIMAGE_THUNK_DATA pOriginalFirstThunk = (PIMAGE_THUNK_DATA)(uiNewImageBase + pImportDesc->OriginalFirstThunk);
+                PIMAGE_THUNK_DATA pFirstThunk = (PIMAGE_THUNK_DATA)(uiNewImageBase + pImportDesc->FirstThunk);
+                if (!pOriginalFirstThunk)
+                    pOriginalFirstThunk = pFirstThunk;
 
-	PIMAGE_DATA_DIRECTORY pImportData_arm64 = &pOldNtHeaders_arm64->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
-	if (pImportData_arm64->Size > 0)
-	{
-		PIMAGE_IMPORT_DESCRIPTOR pImportDesc_arm64 = (PIMAGE_IMPORT_DESCRIPTOR)(uiNewImageBase_arm64 + pImportData_arm64->VirtualAddress);
-		while (pImportDesc_arm64->Name)
-		{
-			char *sModuleName = (char *)(uiNewImageBase_arm64 + pImportDesc_arm64->Name);
-			HINSTANCE hModule = fnLoadLibraryA_arm64(sModuleName);
-			if (hModule)
-			{
-				PIMAGE_THUNK_DATA pOriginalFirstThunk_arm64 = (PIMAGE_THUNK_DATA)(uiNewImageBase_arm64 + pImportDesc_arm64->OriginalFirstThunk);
-				PIMAGE_THUNK_DATA pFirstThunk_arm64 = (PIMAGE_THUNK_DATA)(uiNewImageBase_arm64 + pImportDesc_arm64->FirstThunk);
-				if (!pOriginalFirstThunk_arm64)
-					pOriginalFirstThunk_arm64 = pFirstThunk_arm64;
+                while (pOriginalFirstThunk->u1.AddressOfData)
+                {
+                    FARPROC pfnImportedFunc;
+                    if (IMAGE_SNAP_BY_ORDINAL(pOriginalFirstThunk->u1.Ordinal))
+                    {
+                        pfnImportedFunc = fnGetProcAddress(hModule, (LPCSTR)(pOriginalFirstThunk->u1.Ordinal & 0xFFFF));
+                    }
+                    else
+                    {
+                        PIMAGE_IMPORT_BY_NAME pImportByName = (PIMAGE_IMPORT_BY_NAME)(uiNewImageBase + pOriginalFirstThunk->u1.AddressOfData);
+                        pfnImportedFunc = fnGetProcAddress(hModule, pImportByName->Name);
+                    }
+                    pFirstThunk->u1.Function = (ULONG_PTR)pfnImportedFunc;
+                    pOriginalFirstThunk++;
+                    pFirstThunk++;
+                }
+            }
+            pImportDesc++;
+        }
+    }
 
-				while (pOriginalFirstThunk_arm64->u1.AddressOfData)
-				{
-					FARPROC pfnImportedFunc;
-					if (IMAGE_SNAP_BY_ORDINAL(pOriginalFirstThunk_arm64->u1.Ordinal))
-					{
-						pfnImportedFunc = fnGetProcAddress_arm64(hModule, (LPCSTR)(pOriginalFirstThunk_arm64->u1.Ordinal & 0xFFFF));
-					}
-					else
-					{
-						PIMAGE_IMPORT_BY_NAME pImportByName_arm64 = (PIMAGE_IMPORT_BY_NAME)(uiNewImageBase_arm64 + pOriginalFirstThunk_arm64->u1.AddressOfData);
-						pfnImportedFunc = fnGetProcAddress_arm64(hModule, pImportByName_arm64->Name);
-					}
-					pFirstThunk_arm64->u1.Function = (ULONG_PTR)pfnImportedFunc;
-					pOriginalFirstThunk_arm64++;
-					pFirstThunk_arm64++;
-				}
-			}
-			pImportDesc_arm64++;
-		}
-	}
+    hAppInstance = (HINSTANCE)uiNewImageBase;
 
-	hAppInstance = (HINSTANCE)uiNewImageBase_arm64;
-
-	DLLMAIN fnDllEntry_arm64 = (DLLMAIN)(uiNewImageBase_arm64 + pOldNtHeaders_arm64->OptionalHeader.AddressOfEntryPoint);
-	if (fnDllEntry_arm64)
-	{
-		fnNtFlushInstructionCache_arm64((HANDLE)-1, NULL, 0);
-		fnDllEntry_arm64((HINSTANCE)uiNewImageBase_arm64, DLL_PROCESS_ATTACH, lpLoaderParameter);
-	}
-	return uiNewImageBase_arm64; 
+    DLLMAIN_FN fnDllEntry = (DLLMAIN_FN)(uiNewImageBase + pOldNtHeaders->OptionalHeader.AddressOfEntryPoint);
+    if (fnDllEntry)
+    {
+        fnNtFlushInstructionCache((HANDLE)-1, NULL, 0);
+        fnDllEntry((HINSTANCE)uiNewImageBase, DLL_PROCESS_ATTACH, lpLoaderParameter);
+    }
+    return uiNewImageBase;
 }
 
-#else 
+#else
 
 
 typedef struct
 {
 	LOADLIBRARYA pLoadLibraryA;
 	GETPROCADDRESS pGetProcAddress;
-	PVOID pNtdllBase; 
+	PVOID pNtdllBase;
 } RESOLVED_IMPORTS_X86_X64;
 
 
 static BOOL FindCurrentImageBase_X86_X64(OUT ULONG_PTR *puiCurrentImageBase)
 {
-	ULONG_PTR uiAddress = caller(); 
+	ULONG_PTR uiAddress = caller();
 	if (puiCurrentImageBase == NULL) return FALSE;
 
 	while (TRUE)
@@ -304,9 +308,9 @@ static BOOL FindCurrentImageBase_X86_X64(OUT ULONG_PTR *puiCurrentImageBase)
 			}
 		}
 		uiAddress--;
-		if (!uiAddress) return FALSE; 
+		if (!uiAddress) return FALSE;
 	}
-	return FALSE; 
+	return FALSE;
 }
 
 static BOOL ResolveCoreImportsFromPeb_X86_X64(OUT RESOLVED_IMPORTS_X86_X64 *pResolvedImports)
@@ -314,19 +318,19 @@ static BOOL ResolveCoreImportsFromPeb_X86_X64(OUT RESOLVED_IMPORTS_X86_X64 *pRes
 	ULONG_PTR uiPebLdrData;
 	PLIST_ENTRY pModuleListHead;
 	PLIST_ENTRY pCurrentListEntry;
-    _PPEB_X86_X64 pPeb; 
+    _PPEB_X86_X64 pPeb;
 
 	if (pResolvedImports == NULL) return FALSE;
 	pResolvedImports->pLoadLibraryA = NULL;
 	pResolvedImports->pGetProcAddress = NULL;
 	pResolvedImports->pNtdllBase = NULL;
 
-#if defined(_M_X64) 
+#if defined(_M_X64)
 	pPeb = (_PPEB_X86_X64)__readgsqword(0x60);
-#elif defined(_M_IX86) 
+#elif defined(_M_IX86)
 	pPeb = (_PPEB_X86_X64)__readfsdword(0x30);
 #elif defined(WIN_ARM)
-    #if defined(_MSC_VER) || defined(__GNUC__) || defined(__clang__) 
+    #if defined(_MSC_VER) || defined(__GNUC__) || defined(__clang__)
         pPeb = (_PPEB_X86_X64)(*(DWORD *)((BYTE *)_MoveFromCoprocessor(15, 0, 13, 0, 2) + 0x30));
     #else
 	    #error "WIN_ARM (ARM32) defined, but compiler not recognized for _MoveFromCoprocessor support."
@@ -355,11 +359,11 @@ static BOOL ResolveCoreImportsFromPeb_X86_X64(OUT RESOLVED_IMPORTS_X86_X64 *pRes
 			pCurrentListEntry = pCurrentListEntry->Flink;
 			continue;
 		}
-        
+
         PBYTE tempNamePtr = pByteModuleNameBuffer;
 		while (nameLengthInBytes > 0)
 		{
-			currentModuleNameHash = ror(currentModuleNameHash); 
+			currentModuleNameHash = ror(currentModuleNameHash);
 			BYTE currentByte = *tempNamePtr;
 			if (currentByte >= 'a' && currentByte <= 'z')
 				currentModuleNameHash += (currentByte - ('a' - 'A'));
@@ -369,7 +373,7 @@ static BOOL ResolveCoreImportsFromPeb_X86_X64(OUT RESOLVED_IMPORTS_X86_X64 *pRes
             nameLengthInBytes--;
 		}
 
-		if (currentModuleNameHash == KERNEL32DLL_HASH) 
+		if (currentModuleNameHash == KERNEL32DLL_HASH)
 		{
 			ULONG_PTR uiModuleBase = (ULONG_PTR)pCurrentEntry->DllBase;
 			PIMAGE_NT_HEADERS pNtHeaders = (PIMAGE_NT_HEADERS)(uiModuleBase + ((PIMAGE_DOS_HEADER)uiModuleBase)->e_lfanew);
@@ -381,20 +385,20 @@ static BOOL ResolveCoreImportsFromPeb_X86_X64(OUT RESOLVED_IMPORTS_X86_X64 *pRes
 
 			for (DWORD i = 0; i < pExportDir->NumberOfNames && usFoundCount < 2; i++)
 			{
-				DWORD dwFuncNameHash = _hash((char *)(uiModuleBase + pdwAddressOfNames[i])); 
-				if (dwFuncNameHash == LOADLIBRARYA_HASH) 
+				DWORD dwFuncNameHash = _hash((char *)(uiModuleBase + pdwAddressOfNames[i]));
+				if (dwFuncNameHash == LOADLIBRARYA_HASH_X86_X64)
 				{
 					pResolvedImports->pLoadLibraryA = (LOADLIBRARYA)(uiModuleBase + pdwAddressOfFunctions[pwAddressOfNameOrdinals[i]]);
 					usFoundCount++;
 				}
-				else if (dwFuncNameHash == GETPROCADDRESS_HASH) 
+				else if (dwFuncNameHash == GETPROCADDRESS_HASH_X86_X64)
 				{
 					pResolvedImports->pGetProcAddress = (GETPROCADDRESS)(uiModuleBase + pdwAddressOfFunctions[pwAddressOfNameOrdinals[i]]);
 					usFoundCount++;
 				}
 			}
 		}
-		else if (currentModuleNameHash == NTDLLDLL_HASH) 
+		else if (currentModuleNameHash == NTDLLDLL_HASH_X86_X64)
 		{
 			pResolvedImports->pNtdllBase = pCurrentEntry->DllBase;
 		}
@@ -438,8 +442,8 @@ static BOOL SetupAndResolveSyscalls_X86_X64(
 	SyscallsToResolve[2] = pZwFlushInstructionCache;
 
 #ifdef ENABLE_STOPPAGING
-    if(pZwLockVirtualMemory) { 
-	    pZwLockVirtualMemory->dwCryptedHash = ZWLOCKVIRTUALMEMORY_HASH; 
+    if(pZwLockVirtualMemory) {
+	    pZwLockVirtualMemory->dwCryptedHash = ZWLOCKVIRTUALMEMORY_HASH;
 	    pZwLockVirtualMemory->dwNumberOfArgs = 4;
 	    SyscallsToResolve[3] = pZwLockVirtualMemory;
     } else {
@@ -466,7 +470,7 @@ static PVOID AllocateNewImageMemory_X86_X64(PIMAGE_NT_HEADERS pCurrentImageNtHea
 #ifdef ENABLE_STOPPAGING
 	SIZE_T lockRegionSize = imageRegionSize;
 	if (pLockSyscall && pLockSyscall->pStub != NULL)
-	{ 
+	{
 		rdiNtLockVirtualMemory(pLockSyscall, (HANDLE)-1, &pNewImageBase, &lockRegionSize, 1);
 	}
 #endif
@@ -559,7 +563,7 @@ static BOOL ProcessImageRelocations_X86_X64(ULONG_PTR uiNewImageBase, PIMAGE_NT_
 	while ((ULONG_PTR)pBaseRelocation < uiRelocEnd && pBaseRelocation->SizeOfBlock)
 	{
 		ULONG_PTR relocBlockBaseVA = uiNewImageBase + pBaseRelocation->VirtualAddress;
-		DWORD numEntriesInBlock = (pBaseRelocation->SizeOfBlock - sizeof(IMAGE_BASE_RELOCATION)) / sizeof(IMAGE_RELOC_X86_X64); 
+		DWORD numEntriesInBlock = (pBaseRelocation->SizeOfBlock - sizeof(IMAGE_BASE_RELOCATION)) / sizeof(IMAGE_RELOC_X86_X64);
 		PIMAGE_RELOC_X86_X64 pCurrentRelocEntry = (PIMAGE_RELOC_X86_X64)((ULONG_PTR)pBaseRelocation + sizeof(IMAGE_BASE_RELOCATION));
 
 		while (numEntriesInBlock--)
@@ -573,24 +577,24 @@ static BOOL ProcessImageRelocations_X86_X64(ULONG_PTR uiNewImageBase, PIMAGE_NT_
 				*(DWORD *)patchTargetAddress += (DWORD)relocationDelta;
 				break;
 			case IMAGE_REL_BASED_DIR64:
-                #if defined(_M_X64) 
+                #if defined(_M_X64)
 				    *(ULONG_PTR *)patchTargetAddress += relocationDelta;
                 #endif
 				break;
-#if defined(WIN_ARM) 
-			case IMAGE_REL_BASED_ARM_MOV32T: 
+#if defined(WIN_ARM)
+			case IMAGE_REL_BASED_ARM_MOV32T:
 			{
 				#if defined(ARM_MOV_MASK) && defined(ARM_MOVT) && defined(ARM_MOV_MASK2)
-                DWORD dwInstruction = *(DWORD *)(patchTargetAddress + sizeof(DWORD)); 
+                DWORD dwInstruction = *(DWORD *)(patchTargetAddress + sizeof(DWORD));
 				dwInstruction = MAKELONG(HIWORD(dwInstruction), LOWORD(dwInstruction));
-				if ((dwInstruction & ARM_MOV_MASK) == ARM_MOVT) 
+				if ((dwInstruction & ARM_MOV_MASK) == ARM_MOVT)
 				{
 					WORD wImm = (WORD)(dwInstruction & 0x000000FF);
 					wImm |= (WORD)((dwInstruction & 0x00007000) >> 4);
 					wImm |= (WORD)((dwInstruction & 0x04000000) >> 15);
 					wImm |= (WORD)((dwInstruction & 0x000F0000) >> 4);
 					DWORD dwAddress = ((WORD)HIWORD(relocationDelta) + wImm) & 0xFFFF;
-					DWORD newInstruction = (DWORD)(dwInstruction & ARM_MOV_MASK2); 
+					DWORD newInstruction = (DWORD)(dwInstruction & ARM_MOV_MASK2);
 					newInstruction |= (DWORD)(dwAddress & 0x00FF);
 					newInstruction |= (DWORD)(dwAddress & 0x0700) << 4;
 					newInstruction |= (DWORD)(dwAddress & 0x0800) << 15;
@@ -664,7 +668,7 @@ static BOOL ExecuteDllEntryPoint_X86_X64(ULONG_PTR uiNewImageBase, PIMAGE_NT_HEA
 	if (pNewImageNtHeaders->OptionalHeader.AddressOfEntryPoint == 0) return TRUE;
 
 	ULONG_PTR entryPointVA = uiNewImageBase + pNewImageNtHeaders->OptionalHeader.AddressOfEntryPoint;
-    
+
 	rdiNtFlushInstructionCache(pFlushCacheSyscall, (HANDLE)-1, NULL, 0);
 
 #ifdef REFLECTIVEDLLINJECTION_VIA_LOADREMOTELIBRARYR
@@ -674,7 +678,7 @@ static BOOL ExecuteDllEntryPoint_X86_X64(ULONG_PTR uiNewImageBase, PIMAGE_NT_HEA
 #endif
 }
 
-#endif 
+#endif
 
 
 #ifdef REFLECTIVEDLLINJECTION_VIA_LOADREMOTELIBRARYR
@@ -687,7 +691,7 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader(VOID)
     #ifdef REFLECTIVEDLLINJECTION_VIA_LOADREMOTELIBRARYR
         return Arm64ReflectiveLoaderLogic(lpParameter);
     #else
-        return Arm64ReflectiveLoaderLogic(NULL); 
+        return Arm64ReflectiveLoaderLogic(NULL);
     #endif
 #else
 	ULONG_PTR uiCurrentImageBase;
@@ -732,39 +736,16 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader(VOID)
 	if (!ProcessImageRelocations_X86_X64((ULONG_PTR)pNewImageBase, pNewImageNtHeaders, pCurrentImageNtHeaders)) return 0;
 	if (!ApplySectionProtections_X86_X64((ULONG_PTR)pNewImageBase, pNewImageNtHeaders, &ZwProtectVirtualMemorySyscallObj)) return 0;
 
-	hAppInstance = (HINSTANCE)pNewImageBase; 
+	hAppInstance = (HINSTANCE)pNewImageBase;
 
 	ExecuteDllEntryPoint_X86_X64((ULONG_PTR)pNewImageBase, pNewImageNtHeaders,
 #ifdef REFLECTIVEDLLINJECTION_VIA_LOADREMOTELIBRARYR
-						 lpParameter, 
+						 lpParameter,
 #else
-						 NULL,        
+						 NULL,
 #endif
 						 &ZwFlushInstructionCacheSyscallObj);
 
-	return (ULONG_PTR)pNewImageBase + pNewImageNtHeaders->OptionalHeader.AddressOfEntryPoint;
-#endif 
-}
-
-
-#ifndef REFLECTIVEDLLINJECTION_CUSTOM_DLLMAIN
-BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD dwReason, LPVOID lpReserved)
-{
-	BOOL bReturnValue = TRUE;
-	switch (dwReason)
-	{
-	case DLL_QUERY_HMODULE: 
-		if (lpReserved != NULL)
-			*(HMODULE *)lpReserved = hAppInstance;
-		break;
-	case DLL_PROCESS_ATTACH:
-		hAppInstance = hinstDLL; 
-		break;
-	case DLL_PROCESS_DETACH:
-	case DLL_THREAD_ATTACH:
-	case DLL_THREAD_DETACH:
-		break;
-	}
-	return bReturnValue;
-}
+	return (ULONG_PTR)pNewImageBase;
 #endif
+}

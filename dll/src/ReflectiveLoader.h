@@ -61,70 +61,48 @@ typedef BOOL(WINAPI *DLLMAIN)(HINSTANCE, DWORD, LPVOID);
 
 #include "DirectSyscall.h"
 
-#if !defined(_M_ARM64)
-#define ENABLE_STOPPAGING
-
-#ifdef ENABLE_STOPPAGING
-typedef NTSTATUS(WINAPI *NTLOCKVIRTUALMEMORY_X86_X64)(HANDLE, PVOID *, PSIZE_T, ULONG);
-#define ZWLOCKVIRTUALMEMORY_HASH 0x8169ADC3
-#endif
-
-typedef struct
-{
-    WORD offset : 12;
-    WORD type : 4;
-} IMAGE_RELOC_X86_X64, *PIMAGE_RELOC_X86_X64;
-
-#define ARM_MOVT                0xF2C00000
-#define ARM_MOV_MASK            0xFFF0F000
-#define ARM_MOV_MASK2           0xFFF0F000
-#endif
-
-
 #if defined(_M_ARM64)
 
 typedef HMODULE(WINAPI *LOADLIBRARYA_FN)(LPCSTR);
 typedef FARPROC(WINAPI *GETPROCADDRESS_FN)(HMODULE, LPCSTR);
 typedef LPVOID(WINAPI *VIRTUALALLOC_FN)(LPVOID, SIZE_T, DWORD, DWORD);
-typedef NTSTATUS(NTAPI *NTFLUSHINSTRUCTIONCACHE_FN)(HANDLE, PVOID, ULONG);
+typedef DWORD(NTAPI *NTFLUSHINSTRUCTIONCACHE_FN)(HANDLE, PVOID, ULONG);
 
-#define KERNEL32DLL_HASH_ARM64 0x6A4ABC5B
-#define NTDLLDLL_HASH_ARM64 0x3CFA685D
-#define LOADLIBRARYA_HASH_ARM64 0xEC0E4E8E
-#define GETPROCADDRESS_HASH_ARM64 0x7C0DFCAA
-#define VIRTUALALLOC_HASH_ARM64 0x91AFCA54
-#define NTFLUSHINSTRUCTIONCACHE_HASH_ARM64 0x534C0AB8
+#define KERNEL32DLL_HASH 0x6A4ABC5B
+#define NTDLLDLL_HASH 0x3CFA685D
 
-#define HASH_KEY_ARM64 13
+#define LOADLIBRARYA_HASH 0xEC0E4E8E
+#define GETPROCADDRESS_HASH 0x7C0DFCAA
+#define VIRTUALALLOC_HASH 0x91AFCA54
+#define NTFLUSHINSTRUCTIONCACHE_HASH 0x534C0AB8
+
+#define HASH_KEY 13
 
 #pragma intrinsic(_rotr)
-static __forceinline DWORD ror_dword_loader_arm64(DWORD d)
+static __forceinline DWORD ror_dword_loader(DWORD d)
 {
-    return _rotr(d, HASH_KEY_ARM64);
+    return _rotr(d, HASH_KEY);
 }
 
-static __forceinline DWORD hash_string_loader_arm64(char *c)
+static __forceinline DWORD hash_string_loader(char *c)
 {
     register DWORD h = 0;
     do
     {
-        h = ror_dword_loader_arm64(h);
+        h = ror_dword_loader(h);
         h += *c;
     } while (*++c);
     return h;
 }
 
-#pragma warning(push)
-#pragma warning(disable : 4201)
-
-typedef struct _UNICODE_STRING_LDR_ARM64
+typedef struct _UNICODE_STRING_LDR
 {
     USHORT Length;
     USHORT MaximumLength;
     PWSTR Buffer;
-} UNICODE_STRING_LDR_ARM64, *PUNICODE_STRING_LDR_ARM64;
+} UNICODE_STRING_LDR, *PUNICODE_STRING_LDR;
 
-typedef struct _PEB_LDR_DATA_LDR_ARM64
+typedef struct _PEB_LDR_DATA_LDR
 {
     ULONG Length;
     BOOLEAN Initialized;
@@ -135,9 +113,9 @@ typedef struct _PEB_LDR_DATA_LDR_ARM64
     PVOID EntryInProgress;
     BOOLEAN ShutdownInProgress;
     HANDLE ShutdownThreadId;
-} PEB_LDR_DATA_LDR_ARM64, *PPEB_LDR_DATA_LDR_ARM64;
+} PEB_LDR_DATA_LDR, *PPEB_LDR_DATA_LDR;
 
-typedef struct _LDR_DATA_TABLE_ENTRY_LDR_ARM64
+typedef struct _LDR_DATA_TABLE_ENTRY_LDR
 {
     LIST_ENTRY InLoadOrderLinks;
     LIST_ENTRY InMemoryOrderLinks;
@@ -145,21 +123,21 @@ typedef struct _LDR_DATA_TABLE_ENTRY_LDR_ARM64
     PVOID DllBase;
     PVOID EntryPoint;
     ULONG SizeOfImage;
-    UNICODE_STRING_LDR_ARM64 FullDllName;
-    UNICODE_STRING_LDR_ARM64 BaseDllName;
+    UNICODE_STRING_LDR FullDllName;
+    UNICODE_STRING_LDR BaseDllName;
     ULONG Flags;
     USHORT LoadCount;
     USHORT TlsIndex;
-    union
+    union _anon_union_1
     {
         LIST_ENTRY HashLinks;
-        struct
+        struct _anon_struct_1
         {
             PVOID SectionPointer;
             ULONG CheckSum;
-        };
+        } Links;
     };
-    union
+    union _anon_union_2
     {
         ULONG TimeDateStamp;
         PVOID LoadedImports;
@@ -169,9 +147,11 @@ typedef struct _LDR_DATA_TABLE_ENTRY_LDR_ARM64
     LIST_ENTRY ForwarderLinks;
     LIST_ENTRY ServiceTagLinks;
     LIST_ENTRY StaticLinks;
-} LDR_DATA_TABLE_ENTRY_LDR_ARM64, *PLDR_DATA_TABLE_ENTRY_LDR_ARM64;
+} LDR_DATA_TABLE_ENTRY_LDR, *PLDR_DATA_TABLE_ENTRY_LDR;
 
-typedef struct _PEB_LDR_ARM64
+#pragma warning(push)
+#pragma warning(disable : 4201)
+typedef struct _PEB_LDR
 {
     BOOLEAN InheritedAddressSpace;
     BOOLEAN ReadImageFileExecOptions;
@@ -193,7 +173,7 @@ typedef struct _PEB_LDR_ARM64
     };
     HANDLE Mutant;
     PVOID ImageBaseAddress;
-    PPEB_LDR_DATA_LDR_ARM64 Ldr;
+    PPEB_LDR_DATA_LDR Ldr;
     PVOID ProcessParameters;
     PVOID SubSystemData;
     PVOID ProcessHeap;
@@ -265,7 +245,7 @@ typedef struct _PEB_LDR_ARM64
     ULARGE_INTEGER AppCompatFlagsUser;
     PVOID pShimData;
     PVOID AppCompatInfo;
-    UNICODE_STRING_LDR_ARM64 CSDVersion;
+    UNICODE_STRING_LDR CSDVersion;
     PVOID ActivationContextData;
     PVOID ProcessAssemblyStorageMap;
     PVOID SystemDefaultActivationContextData;
@@ -279,15 +259,40 @@ typedef struct _PEB_LDR_ARM64
     USHORT ActiveConsoleId;
     USHORT AppCompatVersionInfo;
     PVOID ExtendedProcessInfo;
-} PEB_LDR_ARM64, *PPEB_LDR_ARM64;
+} PEB_LDR, *PPEB_LDR;
+#pragma warning(pop)
 
-typedef struct _IMAGE_RELOC_LDR_ARM64
+typedef struct _IMAGE_RELOC_LDR
 {
     WORD offset : 12;
     WORD type : 4;
-} IMAGE_RELOC_LDR_ARM64, *PIMAGE_RELOC_LDR_ARM64;
+} IMAGE_RELOC_LDR, *PIMAGE_RELOC_LDR;
 
-#pragma warning(pop)
+typedef BOOL(WINAPI *DLLMAIN_FN)(HINSTANCE, DWORD, LPVOID);
+
+#else
+
+#define ENABLE_STOPPAGING
+
+#ifdef ENABLE_STOPPAGING
+typedef NTSTATUS(WINAPI *NTLOCKVIRTUALMEMORY_X86_X64)(HANDLE, PVOID *, PSIZE_T, ULONG);
+#define ZWLOCKVIRTUALMEMORY_HASH 0x8169ADC3
+#endif
+
+typedef struct
+{
+    WORD offset : 12;
+    WORD type : 4;
+} IMAGE_RELOC_X86_X64, *PIMAGE_RELOC_X86_X64;
+
+#define ARM_MOVT 0xF2C00000
+#define ARM_MOV_MASK 0xFFF0F000
+#define ARM_MOV_MASK2 0xFFF0F000
+
+#define KERNEL32DLL_HASH_X86_X64 KERNEL32DLL_HASH
+#define NTDLLDLL_HASH_X86_X64 NTDLLDLL_HASH
+#define LOADLIBRARYA_HASH_X86_X64 LOADLIBRARYA_HASH
+#define GETPROCADDRESS_HASH_X86_X64 GETPROCADDRESS_HASH
 
 #endif
 

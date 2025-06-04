@@ -189,14 +189,13 @@ typedef struct __PEB
     LPVOID lpSystemDefaultActivationContextData;
     LPVOID lpSystemAssemblyStorageMap;
     DWORD dwMinimumStackCommit;
-} _PEB_X86_X64, *_PPEB_X86_X64;
+} _PEB, *_PPEB;
 #endif
 
 #if !defined(_M_ARM64) || defined(PROVIDE_ARM64_DOSYSCALL_IMPL)
 extern NTSTATUS DoSyscall(VOID);
 #elif defined(_M_ARM64) && !defined(PROVIDE_ARM64_DOSYSCALL_IMPL)
 NTSTATUS DoSyscall(VOID);
-#else
 
 #endif
 

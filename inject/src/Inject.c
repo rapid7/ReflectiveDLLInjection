@@ -56,6 +56,10 @@
 #define PRINT_ERROR_NO_CODE(fmt, ...) printf("[-] " fmt "\n", ##__VA_ARGS__)
 #define PRINT_OUTPUT(fmt, ...) printf("[>] " fmt "\n", ##__VA_ARGS__)
 
+#ifndef STATUS_ACCESS_VIOLATION
+#define STATUS_ACCESS_VIOLATION ((DWORD)0xC0000005L)
+#endif
+
 typedef struct _INJECTION_CONFIG
 {
 	char *targetProcessIdentifier;
@@ -440,21 +444,21 @@ int main(int argc, char *argv[])
 			WaitForInputIdle(hProcess, dwTargetInitDelayMs);
 		}
 
-		DWORD dwReflectiveLoaderFileOffset = GetReflectiveLoaderOffset(lpDllBuffer, "ReflectiveLoader");
-		PRINT_STATUS("Injector's GetReflectiveLoaderOffset result: 0x%lX", dwReflectiveLoaderFileOffset);
-		if (dwReflectiveLoaderFileOffset == 0)
+		DWORD dwLoaderOffsetForValidation = GetReflectiveLoaderOffset(lpDllBuffer, "ReflectiveLoader");
+		PRINT_STATUS("Local check: GetReflectiveLoaderOffset for 'ReflectiveLoader' is 0x%lX", dwLoaderOffsetForValidation);
+		if (dwLoaderOffsetForValidation == 0)
 		{
 			PRINT_ERROR_NO_CODE("GetReflectiveLoaderOffset failed.");
 			break;
 		}
-		if (dwReflectiveLoaderFileOffset >= dwDllFileSize)
+		if (dwLoaderOffsetForValidation >= dwDllFileSize)
 		{
-			PRINT_ERROR_NO_CODE("CRITICAL: Loader offset (0x%lX) beyond file size (0x%lu)!", dwReflectiveLoaderFileOffset, dwDllFileSize);
+			PRINT_ERROR_NO_CODE("CRITICAL: Loader offset (0x%lX) beyond file size (0x%lu)!", dwLoaderOffsetForValidation, dwDllFileSize);
 			break;
 		}
 
 		PRINT_STATUS("Attempting to call LoadRemoteLibraryR...");
-		hRemoteThread = LoadRemoteLibraryR(hProcess, lpDllBuffer, dwDllFileSize, dwReflectiveLoaderFileOffset, NULL);
+		hRemoteThread = LoadRemoteLibraryR(hProcess, lpDllBuffer, dwDllFileSize, "ReflectiveLoader", NULL);
 		PRINT_STATUS("LoadRemoteLibraryR call completed.");
 
 		if (!hRemoteThread)
@@ -475,7 +479,7 @@ int main(int argc, char *argv[])
 		else
 		{
 			PRINT_OUTPUT("Remote injection thread exit code: 0x%08lX", dwRemoteThreadExitCode);
-			if (dwRemoteThreadExitCode == 0 || dwRemoteThreadExitCode == 0xC0000005 || dwRemoteThreadExitCode == (DWORD)-1)
+			if (dwRemoteThreadExitCode == 0 || dwRemoteThreadExitCode == STATUS_ACCESS_VIOLATION || dwRemoteThreadExitCode == (DWORD)-1)
 			{
 				PRINT_ERROR_NO_CODE("ReflectiveLoader likely failed/crashed in remote process. Exit code: 0x%08lX", dwRemoteThreadExitCode);
 			}
@@ -487,7 +491,7 @@ int main(int argc, char *argv[])
 
 	if (bInjectedAndThreadFinished)
 	{
-		if (dwRemoteThreadExitCode != 0 && dwRemoteThreadExitCode != 0xC0000005 && dwRemoteThreadExitCode != (DWORD)-1)
+		if (dwRemoteThreadExitCode != 0 && dwRemoteThreadExitCode != STATUS_ACCESS_VIOLATION && dwRemoteThreadExitCode != (DWORD)-1)
 			PRINT_SUCCESS("DLL injection appears to have succeeded.");
 		else
 			PRINT_ERROR_NO_CODE("DLL injection appears to have failed based on thread exit code.");
@@ -513,5 +517,5 @@ int main(int argc, char *argv[])
 	}
 
 	PRINT_STATUS("%s", "Injection process finished.");
-	return (dwRemoteThreadExitCode != 0 && dwRemoteThreadExitCode != 0xC0000005 && dwRemoteThreadExitCode != (DWORD)-1 && bInjectedAndThreadFinished) ? 0 : 1;
+	return (dwRemoteThreadExitCode != 0 && dwRemoteThreadExitCode != STATUS_ACCESS_VIOLATION && dwRemoteThreadExitCode != (DWORD)-1 && bInjectedAndThreadFinished) ? 0 : 1;
 }

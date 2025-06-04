@@ -37,10 +37,10 @@
 
 #include "ReflectiveDLLInjection.h"
 
-DWORD GetReflectiveLoaderOffset(VOID *lpReflectiveDllBuffer, LPCSTR cpExportedFunctionName);
+DWORD GetReflectiveLoaderOffset(LPVOID lpReflectiveDllBuffer, LPCSTR cpExportedFunctionName);
 HMODULE WINAPI LoadLibraryR(LPVOID lpBuffer, DWORD dwLength, LPCSTR cpReflectiveLoaderName);
 
 HANDLE WINAPI LoadRemoteLibraryR(HANDLE hProcess, LPVOID lpBuffer, DWORD dwLength,
-                                 DWORD dwReflectiveLoaderFileOffset, LPVOID lpParameter);
+                                 LPCSTR cpExportedFunctionName, LPVOID lpParameter);
 
 #endif

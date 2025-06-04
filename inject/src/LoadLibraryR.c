@@ -273,7 +273,7 @@ HMODULE WINAPI LoadLibraryR(LPVOID lpBuffer, DWORD dwLength, LPCSTR cpReflective
 }
 
 HANDLE WINAPI LoadRemoteLibraryR(HANDLE hProcess, LPVOID lpBuffer, DWORD dwLength,
-								 DWORD dwReflectiveLoaderFileOffset, LPVOID lpParameter)
+								 LPCSTR cpExportedFunctionName, LPVOID lpParameter)
 {
 	LPVOID lpRemoteLibraryBuffer = NULL;
 	LPTHREAD_START_ROUTINE lpRemoteReflectiveLoader = NULL;
@@ -281,10 +281,17 @@ HANDLE WINAPI LoadRemoteLibraryR(HANDLE hProcess, LPVOID lpBuffer, DWORD dwLengt
 	DWORD dwThreadId;
 	DWORD dwOldProtection;
 	DWORD dwLastError = ERROR_SUCCESS;
+	DWORD dwReflectiveLoaderFileOffset = 0;
 
-	if (!hProcess || !lpBuffer || !dwLength || dwReflectiveLoaderFileOffset == 0)
+	if (!hProcess || !lpBuffer || !dwLength || !cpExportedFunctionName)
 	{
 		SetLastError(ERROR_INVALID_PARAMETER);
+		return NULL;
+	}
+
+	dwReflectiveLoaderFileOffset = GetReflectiveLoaderOffset(lpBuffer, cpExportedFunctionName);
+	if (dwReflectiveLoaderFileOffset == 0)
+	{
 		return NULL;
 	}
 	if (dwReflectiveLoaderFileOffset >= dwLength)

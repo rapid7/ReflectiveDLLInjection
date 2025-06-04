@@ -318,7 +318,7 @@ static BOOL ResolveCoreImportsFromPeb_X86_X64(OUT RESOLVED_IMPORTS_X86_X64 *pRes
 	ULONG_PTR uiPebLdrData;
 	PLIST_ENTRY pModuleListHead;
 	PLIST_ENTRY pCurrentListEntry;
-    _PPEB_X86_X64 pPeb;
+    _PPEB pPeb;
 
 	if (pResolvedImports == NULL) return FALSE;
 	pResolvedImports->pLoadLibraryA = NULL;
@@ -326,12 +326,12 @@ static BOOL ResolveCoreImportsFromPeb_X86_X64(OUT RESOLVED_IMPORTS_X86_X64 *pRes
 	pResolvedImports->pNtdllBase = NULL;
 
 #if defined(_M_X64)
-	pPeb = (_PPEB_X86_X64)__readgsqword(0x60);
+	pPeb = (_PPEB)__readgsqword(0x60);
 #elif defined(_M_IX86)
-	pPeb = (_PPEB_X86_X64)__readfsdword(0x30);
+	pPeb = (_PPEB)__readfsdword(0x30);
 #elif defined(WIN_ARM)
     #if defined(_MSC_VER) || defined(__GNUC__) || defined(__clang__)
-        pPeb = (_PPEB_X86_X64)(*(DWORD *)((BYTE *)_MoveFromCoprocessor(15, 0, 13, 0, 2) + 0x30));
+		pPeb = (_PPEB)(*(DWORD *)((BYTE *)_MoveFromCoprocessor(15, 0, 13, 0, 2) + 0x30));
     #else
 	    #error "WIN_ARM (ARM32) defined, but compiler not recognized for _MoveFromCoprocessor support."
         return FALSE;
@@ -386,19 +386,19 @@ static BOOL ResolveCoreImportsFromPeb_X86_X64(OUT RESOLVED_IMPORTS_X86_X64 *pRes
 			for (DWORD i = 0; i < pExportDir->NumberOfNames && usFoundCount < 2; i++)
 			{
 				DWORD dwFuncNameHash = _hash((char *)(uiModuleBase + pdwAddressOfNames[i]));
-				if (dwFuncNameHash == LOADLIBRARYA_HASH_X86_X64)
+				if (dwFuncNameHash == LOADLIBRARYA_HASH)
 				{
 					pResolvedImports->pLoadLibraryA = (LOADLIBRARYA)(uiModuleBase + pdwAddressOfFunctions[pwAddressOfNameOrdinals[i]]);
 					usFoundCount++;
 				}
-				else if (dwFuncNameHash == GETPROCADDRESS_HASH_X86_X64)
+				else if (dwFuncNameHash == GETPROCADDRESS_HASH)
 				{
 					pResolvedImports->pGetProcAddress = (GETPROCADDRESS)(uiModuleBase + pdwAddressOfFunctions[pwAddressOfNameOrdinals[i]]);
 					usFoundCount++;
 				}
 			}
 		}
-		else if (currentModuleNameHash == NTDLLDLL_HASH_X86_X64)
+		else if (currentModuleNameHash == NTDLLDLL_HASH)
 		{
 			pResolvedImports->pNtdllBase = pCurrentEntry->DllBase;
 		}
@@ -563,8 +563,8 @@ static BOOL ProcessImageRelocations_X86_X64(ULONG_PTR uiNewImageBase, PIMAGE_NT_
 	while ((ULONG_PTR)pBaseRelocation < uiRelocEnd && pBaseRelocation->SizeOfBlock)
 	{
 		ULONG_PTR relocBlockBaseVA = uiNewImageBase + pBaseRelocation->VirtualAddress;
-		DWORD numEntriesInBlock = (pBaseRelocation->SizeOfBlock - sizeof(IMAGE_BASE_RELOCATION)) / sizeof(IMAGE_RELOC_X86_X64);
-		PIMAGE_RELOC_X86_X64 pCurrentRelocEntry = (PIMAGE_RELOC_X86_X64)((ULONG_PTR)pBaseRelocation + sizeof(IMAGE_BASE_RELOCATION));
+		DWORD numEntriesInBlock = (pBaseRelocation->SizeOfBlock - sizeof(IMAGE_BASE_RELOCATION)) / sizeof(IMAGE_RELOC);
+		PIMAGE_RELOC pCurrentRelocEntry = (PIMAGE_RELOC)((ULONG_PTR)pBaseRelocation + sizeof(IMAGE_BASE_RELOCATION));
 
 		while (numEntriesInBlock--)
 		{
@@ -681,18 +681,10 @@ static BOOL ExecuteDllEntryPoint_X86_X64(ULONG_PTR uiNewImageBase, PIMAGE_NT_HEA
 #endif
 
 
-#ifdef REFLECTIVEDLLINJECTION_VIA_LOADREMOTELIBRARYR
 RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader(LPVOID lpParameter)
-#else
-RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader(VOID)
-#endif
 {
 #if defined(_M_ARM64)
-    #ifdef REFLECTIVEDLLINJECTION_VIA_LOADREMOTELIBRARYR
-        return Arm64ReflectiveLoaderLogic(lpParameter);
-    #else
-        return Arm64ReflectiveLoaderLogic(NULL);
-    #endif
+	return Arm64ReflectiveLoaderLogic(lpParameter);
 #else
 	ULONG_PTR uiCurrentImageBase;
 	PIMAGE_NT_HEADERS pCurrentImageNtHeaders;
@@ -739,11 +731,7 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader(VOID)
 	hAppInstance = (HINSTANCE)pNewImageBase;
 
 	ExecuteDllEntryPoint_X86_X64((ULONG_PTR)pNewImageBase, pNewImageNtHeaders,
-#ifdef REFLECTIVEDLLINJECTION_VIA_LOADREMOTELIBRARYR
 						 lpParameter,
-#else
-						 NULL,
-#endif
 						 &ZwFlushInstructionCacheSyscallObj);
 
 	return (ULONG_PTR)pNewImageBase;

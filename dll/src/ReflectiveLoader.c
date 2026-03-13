@@ -25,7 +25,8 @@
 // OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 //===============================================================================================//
-
+#pragma optimize("", off)
+#pragma clang optimize off
 #include "ReflectiveLoader.h"
 #include "DirectSyscall.c"
 
@@ -114,7 +115,7 @@ typedef struct
 //===============================================================================================//
 
 // STEP 0: Finds the loader's own image base in memory by searching backwards from the caller's address.
-static ULONG_PTR _find_image_base(VOID)
+static NO_OBF ULONG_PTR _find_image_base(VOID)
 {
 	ULONG_PTR uiLibraryAddress = caller();
 	while (TRUE)
@@ -135,7 +136,7 @@ static ULONG_PTR _find_image_base(VOID)
 }
 
 // STEP 1: Resolves all required functions and prepares for direct syscalls.
-static DWORD _resolve_dependencies(PLOADER_CONTEXT pContext)
+static NO_OBF DWORD _resolve_dependencies(PLOADER_CONTEXT pContext)
 {
 	ULONG_PTR uiBaseAddress;
 	USHORT usCounter;
@@ -258,7 +259,7 @@ static DWORD _resolve_dependencies(PLOADER_CONTEXT pContext)
 	return RDI_SUCCESS;
 }
 
-static BOOL _load_image_into_memory(PLOADER_CONTEXT pContext)
+static NO_OBF BOOL _load_image_into_memory(PLOADER_CONTEXT pContext)
 {
 	SIZE_T RegionSize = pContext->pNtHeaders->OptionalHeader.SizeOfImage;
 
@@ -295,7 +296,7 @@ static BOOL _load_image_into_memory(PLOADER_CONTEXT pContext)
 }
 
 // STEP 4: Process the image's Import Address Table (IAT).
-static void _process_imports(PLOADER_CONTEXT pContext)
+static NO_OBF void _process_imports(PLOADER_CONTEXT pContext)
 {
 	PIMAGE_DATA_DIRECTORY pDataDirectory = &pContext->pNtHeaders->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
 	if (pDataDirectory->Size == 0)
@@ -337,7 +338,7 @@ static void _process_imports(PLOADER_CONTEXT pContext)
 }
 
 // STEP 5: Process the image's base relocations.
-static void _process_relocations(PLOADER_CONTEXT pContext)
+static NO_OBF void _process_relocations(PLOADER_CONTEXT pContext)
 {
 	ULONG_PTR uiDelta = pContext->uiBaseAddress - pContext->pNtHeaders->OptionalHeader.ImageBase;
 	if (uiDelta == 0)
@@ -407,7 +408,7 @@ static void _process_relocations(PLOADER_CONTEXT pContext)
 }
 
 // STEP 6: Set the correct memory protections on each section of the newly loaded image.
-static void _set_memory_protections(PLOADER_CONTEXT pContext)
+static NO_OBF void _set_memory_protections(PLOADER_CONTEXT pContext)
 {
 	PIMAGE_SECTION_HEADER pSectionHeader = IMAGE_FIRST_SECTION(pContext->pNtHeaders);
 	for (USHORT i = 0; i < pContext->pNtHeaders->FileHeader.NumberOfSections; i++, pSectionHeader++)
@@ -445,7 +446,7 @@ static void _set_memory_protections(PLOADER_CONTEXT pContext)
 }
 
 // STEP 7 & 8: Call the image's entry point and return its address.
-static ULONG_PTR _call_entry_point(PLOADER_CONTEXT pContext, LPVOID lpParameter)
+static NO_OBF ULONG_PTR _call_entry_point(PLOADER_CONTEXT pContext, LPVOID lpParameter)
 {
 	// Get the address of the entry point.
 	ULONG_PTR pEntryPoint = (pContext->uiBaseAddress + pContext->pNtHeaders->OptionalHeader.AddressOfEntryPoint);
@@ -471,9 +472,9 @@ static ULONG_PTR _call_entry_point(PLOADER_CONTEXT pContext, LPVOID lpParameter)
 // By explicitly declaring the loader as __cdecl, we ensure the name is exported simply
 // as "ReflectiveLoader" on all platforms, which is what the injector expects.
 #ifdef REFLECTIVEDLLINJECTION_VIA_LOADREMOTELIBRARYR
-RDIDLLEXPORT ULONG_PTR __cdecl ReflectiveLoader(LPVOID lpParameter)
+RDIDLLEXPORT NO_OBF ULONG_PTR __cdecl ReflectiveLoader(LPVOID lpParameter)
 #else
-RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader(VOID)
+RDIDLLEXPORT NO_OBF ULONG_PTR WINAPI ReflectiveLoader(VOID)
 #endif
 {
 	// NOTE:    Using SecureZeroMemory instead of `LOADER_CONTEXT context = { 0 }` because of segmentfault in metsrv.
@@ -537,7 +538,7 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader(VOID)
 
 #ifndef REFLECTIVEDLLINJECTION_CUSTOM_DLLMAIN
 // Default DllMain if the user does not supply their own.
-BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD dwReason, LPVOID lpReserved)
+NO_OBF BOOL  WINAPI DllMain(HINSTANCE hinstDLL, DWORD dwReason, LPVOID lpReserved)
 {
 	BOOL bReturnValue = TRUE;
 	switch (dwReason)

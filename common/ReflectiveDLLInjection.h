@@ -25,6 +25,7 @@
 // OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 //===============================================================================================//
+#pragma clang optimize off
 #ifndef _REFLECTIVEDLLINJECTION_REFLECTIVEDLLINJECTION_H
 #define _REFLECTIVEDLLINJECTION_REFLECTIVEDLLINJECTION_H
 //===============================================================================================//

@@ -13,7 +13,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <intrin.h>
-
+#define NO_OBF __attribute((__annotate__(("-indbr -icall -indgv -cse -fla"))))
 #ifdef _WIN64
 #define SYS_STUB_SIZE 32
 #else
@@ -200,13 +200,13 @@ typedef struct __PEB // 65 elements, 0x210 bytes
 
 //===============================================================================================//
 
-BOOL getSyscalls(PVOID pNtdllBase, Syscall* Syscalls[], DWORD dwNumberOfSyscalls);
-extern NTSTATUS DoSyscall(VOID);
+NO_OBF BOOL getSyscalls(PVOID pNtdllBase, Syscall* Syscalls[], DWORD dwNumberOfSyscalls);
+extern NO_OBF NTSTATUS DoSyscall(VOID *fn, DWORD dwSyscallNr, ULONG **lpArgs, DWORD dwNumberOfArgs);
 
 //
 // Native API functions
 //
-NTSTATUS rdiNtAllocateVirtualMemory(Syscall* pSyscall, HANDLE hProcess, PVOID* pBaseAddress, ULONG_PTR pZeroBits, PSIZE_T pRegionSize, ULONG ulAllocationType, ULONG ulProtect);
-NTSTATUS rdiNtProtectVirtualMemory(Syscall* pSyscall, HANDLE hProcess, PVOID* pBaseAddress, PSIZE_T pNumberOfBytesToProtect, ULONG ulNewAccessProtection, PULONG ulOldAccessProtection);
-NTSTATUS rdiNtFlushInstructionCache(Syscall* pSyscall, HANDLE hProcess, PVOID* pBaseAddress, SIZE_T FlushSize);
-NTSTATUS rdiNtLockVirtualMemory(Syscall* pSyscall, HANDLE hProcess, PVOID* pBaseAddress, PSIZE_T NumberOfBytesToLock, ULONG MapType);
+NO_OBF NTSTATUS rdiNtAllocateVirtualMemory(Syscall* pSyscall, HANDLE hProcess, PVOID* pBaseAddress, ULONG_PTR pZeroBits, PSIZE_T pRegionSize, ULONG ulAllocationType, ULONG ulProtect);
+NO_OBF NTSTATUS rdiNtProtectVirtualMemory(Syscall* pSyscall, HANDLE hProcess, PVOID* pBaseAddress, PSIZE_T pNumberOfBytesToProtect, ULONG ulNewAccessProtection, PULONG ulOldAccessProtection);
+NO_OBF NTSTATUS rdiNtFlushInstructionCache(Syscall* pSyscall, HANDLE hProcess, PVOID* pBaseAddress, SIZE_T FlushSize);
+NO_OBF NTSTATUS rdiNtLockVirtualMemory(Syscall* pSyscall, HANDLE hProcess, PVOID* pBaseAddress, PSIZE_T NumberOfBytesToLock, ULONG MapType);

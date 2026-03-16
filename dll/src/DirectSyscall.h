@@ -13,7 +13,13 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <intrin.h>
-#define NO_OBF __attribute((__annotate__(("-indbr -icall -indgv -cse -fla"))))
+
+#ifdef ARKARI_OBFUSCATOR
+#define COMPILER_OPTIONS __attribute((__annotate__(("-indbr -icall -indgv -cse -fla"))))
+#else
+#define COMPILER_OPTIONS
+#endif
+
 #ifdef _WIN64
 #define SYS_STUB_SIZE 32
 #else
@@ -200,13 +206,13 @@ typedef struct __PEB // 65 elements, 0x210 bytes
 
 //===============================================================================================//
 
-NO_OBF BOOL getSyscalls(PVOID pNtdllBase, Syscall* Syscalls[], DWORD dwNumberOfSyscalls);
-extern NO_OBF NTSTATUS DoSyscall(VOID *fn, DWORD dwSyscallNr, ULONG **lpArgs, DWORD dwNumberOfArgs);
+COMPILER_OPTIONS BOOL getSyscalls(PVOID pNtdllBase, Syscall* Syscalls[], DWORD dwNumberOfSyscalls);
+extern COMPILER_OPTIONS NTSTATUS DoSyscall(VOID *fn, DWORD dwSyscallNr, ULONG **lpArgs, DWORD dwNumberOfArgs);
 
 //
 // Native API functions
 //
-NO_OBF NTSTATUS rdiNtAllocateVirtualMemory(Syscall* pSyscall, HANDLE hProcess, PVOID* pBaseAddress, ULONG_PTR pZeroBits, PSIZE_T pRegionSize, ULONG ulAllocationType, ULONG ulProtect);
-NO_OBF NTSTATUS rdiNtProtectVirtualMemory(Syscall* pSyscall, HANDLE hProcess, PVOID* pBaseAddress, PSIZE_T pNumberOfBytesToProtect, ULONG ulNewAccessProtection, PULONG ulOldAccessProtection);
-NO_OBF NTSTATUS rdiNtFlushInstructionCache(Syscall* pSyscall, HANDLE hProcess, PVOID* pBaseAddress, SIZE_T FlushSize);
-NO_OBF NTSTATUS rdiNtLockVirtualMemory(Syscall* pSyscall, HANDLE hProcess, PVOID* pBaseAddress, PSIZE_T NumberOfBytesToLock, ULONG MapType);
+COMPILER_OPTIONS NTSTATUS rdiNtAllocateVirtualMemory(Syscall* pSyscall, HANDLE hProcess, PVOID* pBaseAddress, ULONG_PTR pZeroBits, PSIZE_T pRegionSize, ULONG ulAllocationType, ULONG ulProtect);
+COMPILER_OPTIONS NTSTATUS rdiNtProtectVirtualMemory(Syscall* pSyscall, HANDLE hProcess, PVOID* pBaseAddress, PSIZE_T pNumberOfBytesToProtect, ULONG ulNewAccessProtection, PULONG ulOldAccessProtection);
+COMPILER_OPTIONS NTSTATUS rdiNtFlushInstructionCache(Syscall* pSyscall, HANDLE hProcess, PVOID* pBaseAddress, SIZE_T FlushSize);
+COMPILER_OPTIONS NTSTATUS rdiNtLockVirtualMemory(Syscall* pSyscall, HANDLE hProcess, PVOID* pBaseAddress, PSIZE_T NumberOfBytesToLock, ULONG MapType);

@@ -9,33 +9,40 @@
 //===============================================================================================//
 
 #pragma optimize("g", off)
+#ifdef __MINGW32__ 
 #pragma GCC push_options
 #pragma GCC optimize("O0")
+#endif
+// #ifdef ARKARI_OBFUSCATOR
+// #pragma GCC push_options
+// #pragma GCC optimize("O0")
+// #pragma clang optimize off
+// #endif
 
 #pragma warning(disable : 4100) // Unreferenced parameter 'pSyscall' is intentionally handled by assembly.
-NO_OBF NTSTATUS SyscallStub(Syscall *pSyscall, ULONG_PTR **lpArgs, DWORD dwNumberOfArgs)
+COMPILER_OPTIONS NTSTATUS SyscallStub(Syscall *pSyscall, ULONG_PTR **lpArgs, DWORD dwNumberOfArgs)
 {
 	return DoSyscall(pSyscall->pStub, pSyscall->dwSyscallNr, lpArgs, dwNumberOfArgs);
 }
 
 #pragma warning(default : 4100)
 
-NO_OBF NTSTATUS rdiNtAllocateVirtualMemory(Syscall *pSyscall, HANDLE hProcess, PVOID *pBaseAddress, ULONG_PTR pZeroBits, PSIZE_T pRegionSize, ULONG ulAllocationType, ULONG ulProtect)
+COMPILER_OPTIONS NTSTATUS rdiNtAllocateVirtualMemory(Syscall *pSyscall, HANDLE hProcess, PVOID *pBaseAddress, ULONG_PTR pZeroBits, PSIZE_T pRegionSize, ULONG ulAllocationType, ULONG ulProtect)
 {
 	ULONG_PTR *lpArgs[] = { (ULONG_PTR *)hProcess, (ULONG_PTR *)pBaseAddress, (ULONG_PTR *)pZeroBits, (ULONG_PTR *)pRegionSize, (ULONG_PTR *)ulAllocationType, (ULONG_PTR *)ulProtect };
 	return SyscallStub(pSyscall, &lpArgs, 6);
 }
-NO_OBF NTSTATUS rdiNtProtectVirtualMemory(Syscall *pSyscall, HANDLE hProcess, PVOID *pBaseAddress, PSIZE_T pNumberOfBytesToProtect, ULONG ulNewAccessProtection, PULONG ulOldAccessProtection)
+COMPILER_OPTIONS NTSTATUS rdiNtProtectVirtualMemory(Syscall *pSyscall, HANDLE hProcess, PVOID *pBaseAddress, PSIZE_T pNumberOfBytesToProtect, ULONG ulNewAccessProtection, PULONG ulOldAccessProtection)
 {
 	ULONG_PTR *lpArgs[] = { (ULONG_PTR *)hProcess, (ULONG_PTR *)pBaseAddress, (ULONG_PTR *)pNumberOfBytesToProtect, (ULONG_PTR *)ulNewAccessProtection, (ULONG_PTR *)ulOldAccessProtection };
 	return SyscallStub(pSyscall, &lpArgs, 5);
 }
-NO_OBF NTSTATUS rdiNtFlushInstructionCache(Syscall *pSyscall, HANDLE hProcess, PVOID *pBaseAddress, SIZE_T FlushSize)
+COMPILER_OPTIONS NTSTATUS rdiNtFlushInstructionCache(Syscall *pSyscall, HANDLE hProcess, PVOID *pBaseAddress, SIZE_T FlushSize)
 {
 	ULONG_PTR *lpArgs[] = { (ULONG_PTR *)hProcess, (ULONG_PTR *)pBaseAddress, (ULONG_PTR *)FlushSize };
 	return SyscallStub(pSyscall, &lpArgs, 3);
 }
-NO_OBF NTSTATUS rdiNtLockVirtualMemory(Syscall *pSyscall, HANDLE hProcess, PVOID *pBaseAddress, PSIZE_T NumberOfBytesToLock, ULONG MapType)
+COMPILER_OPTIONS NTSTATUS rdiNtLockVirtualMemory(Syscall *pSyscall, HANDLE hProcess, PVOID *pBaseAddress, PSIZE_T NumberOfBytesToLock, ULONG MapType)
 {
 	ULONG_PTR *lpArgs[] = { (ULONG_PTR *)hProcess, (ULONG_PTR *)pBaseAddress, (ULONG_PTR *)NumberOfBytesToLock, (ULONG_PTR *)MapType };
 	return SyscallStub(pSyscall, &lpArgs, 4);
@@ -59,7 +66,7 @@ NO_OBF NTSTATUS rdiNtLockVirtualMemory(Syscall *pSyscall, HANDLE hProcess, PVOID
 //     exact opcode of a given function's 'svc' instruction, verifying its integrity.
 //     The "stub" we execute is the function address itself.
 //===============================================================================================//
-NO_OBF BOOL getSyscalls(PVOID pNtdllBase, Syscall *Syscalls[], DWORD dwSyscallSize)
+COMPILER_OPTIONS BOOL getSyscalls(PVOID pNtdllBase, Syscall *Syscalls[], DWORD dwSyscallSize)
 {
 	PIMAGE_DOS_HEADER pDosHdr = (PIMAGE_DOS_HEADER)pNtdllBase;
 	PIMAGE_NT_HEADERS pNtHdrs = (PIMAGE_NT_HEADERS)((PBYTE)pNtdllBase + pDosHdr->e_lfanew);

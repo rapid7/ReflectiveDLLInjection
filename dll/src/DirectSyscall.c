@@ -9,7 +9,7 @@
 //===============================================================================================//
 
 #pragma optimize("g", off)
-#ifdef __MINGW32__ 
+#ifdef __MINGW32__
 #pragma GCC push_options
 #pragma GCC optimize("O0")
 #endif

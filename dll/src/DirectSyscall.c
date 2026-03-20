@@ -20,7 +20,7 @@
 // #endif
 
 #pragma warning(disable : 4100) // Unreferenced parameter 'pSyscall' is intentionally handled by assembly.
-COMPILER_OPTIONS NTSTATUS SyscallStub(Syscall *pSyscall, ULONG_PTR **lpArgs, DWORD dwNumberOfArgs)
+COMPILER_OPTIONS NTSTATUS SyscallStub(Syscall *pSyscall, DWORD dwNumberOfArgs, ULONG_PTR lpArgs)
 {
 	return DoSyscall(pSyscall->pStub, pSyscall->dwSyscallNr, lpArgs, dwNumberOfArgs);
 }
@@ -29,23 +29,23 @@ COMPILER_OPTIONS NTSTATUS SyscallStub(Syscall *pSyscall, ULONG_PTR **lpArgs, DWO
 
 COMPILER_OPTIONS NTSTATUS rdiNtAllocateVirtualMemory(Syscall *pSyscall, HANDLE hProcess, PVOID *pBaseAddress, ULONG_PTR pZeroBits, PSIZE_T pRegionSize, ULONG ulAllocationType, ULONG ulProtect)
 {
-	ULONG_PTR *lpArgs[] = { (ULONG_PTR *)hProcess, (ULONG_PTR *)pBaseAddress, (ULONG_PTR *)pZeroBits, (ULONG_PTR *)pRegionSize, (ULONG_PTR *)ulAllocationType, (ULONG_PTR *)ulProtect };
-	return SyscallStub(pSyscall, &lpArgs, 6);
+	ULONG lpArgs[] = { (ULONG)hProcess, (ULONG)pBaseAddress, (ULONG)pZeroBits, (ULONG)pRegionSize, (ULONG)ulAllocationType, (ULONG)ulProtect };
+	return SyscallStub(pSyscall, sizeof(lpArgs) / sizeof(ULONG), (ULONG_PTR)&lpArgs);
 }
 COMPILER_OPTIONS NTSTATUS rdiNtProtectVirtualMemory(Syscall *pSyscall, HANDLE hProcess, PVOID *pBaseAddress, PSIZE_T pNumberOfBytesToProtect, ULONG ulNewAccessProtection, PULONG ulOldAccessProtection)
 {
-	ULONG_PTR *lpArgs[] = { (ULONG_PTR *)hProcess, (ULONG_PTR *)pBaseAddress, (ULONG_PTR *)pNumberOfBytesToProtect, (ULONG_PTR *)ulNewAccessProtection, (ULONG_PTR *)ulOldAccessProtection };
-	return SyscallStub(pSyscall, &lpArgs, 5);
+	ULONG lpArgs[] = { (ULONG)hProcess, (ULONG)pBaseAddress, (ULONG)pNumberOfBytesToProtect, (ULONG)ulNewAccessProtection, (ULONG)ulOldAccessProtection };
+	return SyscallStub(pSyscall, sizeof(lpArgs) / sizeof(ULONG), (ULONG_PTR)&lpArgs);
 }
 COMPILER_OPTIONS NTSTATUS rdiNtFlushInstructionCache(Syscall *pSyscall, HANDLE hProcess, PVOID *pBaseAddress, SIZE_T FlushSize)
 {
-	ULONG_PTR *lpArgs[] = { (ULONG_PTR *)hProcess, (ULONG_PTR *)pBaseAddress, (ULONG_PTR *)FlushSize };
-	return SyscallStub(pSyscall, &lpArgs, 3);
+	ULONG lpArgs[] = { (ULONG)hProcess, (ULONG)pBaseAddress, (ULONG)FlushSize };
+	return SyscallStub(pSyscall, sizeof(lpArgs) / sizeof(ULONG), (ULONG_PTR)&lpArgs);
 }
 COMPILER_OPTIONS NTSTATUS rdiNtLockVirtualMemory(Syscall *pSyscall, HANDLE hProcess, PVOID *pBaseAddress, PSIZE_T NumberOfBytesToLock, ULONG MapType)
 {
-	ULONG_PTR *lpArgs[] = { (ULONG_PTR *)hProcess, (ULONG_PTR *)pBaseAddress, (ULONG_PTR *)NumberOfBytesToLock, (ULONG_PTR *)MapType };
-	return SyscallStub(pSyscall, &lpArgs, 4);
+	ULONG lpArgs[] = { (ULONG)hProcess, (ULONG)pBaseAddress, (ULONG)NumberOfBytesToLock, (ULONG)MapType };
+	return SyscallStub(pSyscall, sizeof(lpArgs) / sizeof(ULONG), (ULONG_PTR)&lpArgs);
 }
 
 //===============================================================================================//

@@ -30,7 +30,7 @@ COMPILER_OPTIONS NTSTATUS SyscallStub(Syscall *pSyscall, DWORD dwNumberOfArgs, U
 COMPILER_OPTIONS NTSTATUS rdiNtAllocateVirtualMemory(Syscall *pSyscall, HANDLE hProcess, PVOID *pBaseAddress, ULONG_PTR pZeroBits, PSIZE_T pRegionSize, ULONG ulAllocationType, ULONG ulProtect)
 {
 	ULONG_PTR lpArgs[] = { (ULONG_PTR)hProcess, (ULONG_PTR)pBaseAddress, (ULONG_PTR)pZeroBits, (ULONG_PTR)pRegionSize, (ULONG_PTR)ulAllocationType, (ULONG_PTR)ulProtect };
-	return SyscallStub(pSyscall, sizeof(lpArgs) / sizeof(ULONG), (ULONG_PTR *)&lpArgs);
+	return SyscallStub(pSyscall, sizeof(lpArgs) / sizeof(ULONG_PTR), (ULONG_PTR *)&lpArgs);
 }
 COMPILER_OPTIONS NTSTATUS rdiNtProtectVirtualMemory(Syscall *pSyscall, HANDLE hProcess, PVOID *pBaseAddress, PSIZE_T pNumberOfBytesToProtect, ULONG ulNewAccessProtection, PULONG ulOldAccessProtection)
 {

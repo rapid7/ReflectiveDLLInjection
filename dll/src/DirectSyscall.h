@@ -207,7 +207,7 @@ typedef struct __PEB // 65 elements, 0x210 bytes
 //===============================================================================================//
 
 COMPILER_OPTIONS BOOL getSyscalls(PVOID pNtdllBase, Syscall* Syscalls[], DWORD dwNumberOfSyscalls);
-extern COMPILER_OPTIONS NTSTATUS DoSyscall(VOID *fn, DWORD dwSyscallNr, ULONG_PTR lpArgs, DWORD dwNumberOfArgs);
+extern COMPILER_OPTIONS NTSTATUS DoSyscall(VOID *fn, DWORD dwSyscallNr, ULONG_PTR *lpArgs, DWORD dwNumberOfArgs);
 
 //
 // Native API functions

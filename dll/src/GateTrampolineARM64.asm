@@ -1,6 +1,12 @@
 ;
-; ARM64 Syscall Trampoline for Reflective DLL Injection
-; Microsoft ARM64 Assembler (armasm64.exe) syntax.
+; GateTrampolineARM64.s
+;
+; DoSyscall function implementation for 64-bit Windows on ARM64 to perform system calls with arguments passed as an array.
+;  NTSTATUS DoSyscall(VOID *fn, DWORD dwSyscallNr, ULONG_PTR *lpArgs, DWORD dwNumberOfArgs);
+;
+; Authors:
+;  Alex "xaitax" Hagenah                            - Original implementation
+;  Diego Ledda <diego_ledda[at]rapid7[dot]com>      - Argument as array porting and cleanup
 ;
     AREA    |.text|, CODE, READONLY, ALIGN=3
     EXPORT  DoSyscall

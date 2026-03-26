@@ -1,3 +1,14 @@
+;
+; GateTrampoline32.s
+;
+; DoSyscall function implementation for 32-bit Windows to perform system calls with arguments passed as an array.
+;  NTSTATUS DoSyscall(VOID *fn, DWORD dwSyscallNr, ULONG_PTR *lpArgs, DWORD dwNumberOfArgs);
+;
+; Authors:
+;  Christophe De La Fuente <christophe_delafuente[at]rapid7[dot]com>  - Original implementation
+;  Muzaffer Umut ŞAHİN <mailatmayinlutfen[at]gmail[dot]com>           - Argument as array modification
+;  Diego Ledda <diego_ledda[at]rapid7[dot]com>                        - Argument as array porting and cleanup
+;
     .intel_syntax noprefix
 
     .global _DoSyscall

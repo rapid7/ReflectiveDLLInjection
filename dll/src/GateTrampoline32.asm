@@ -1,3 +1,15 @@
+;
+; GateTrampoline32.asm
+;
+; DoSyscall function implementation for 32-bit Windows to perform system calls with arguments passed as an array.
+;  NTSTATUS DoSyscall(VOID *fn, DWORD dwSyscallNr, ULONG_PTR *lpArgs, DWORD dwNumberOfArgs);
+;
+; Authors:
+;  Christophe De La Fuente <christophe_delafuente[at]rapid7[dot]com>  - Original implementation
+;  Muzaffer Umut ŞAHİN <mailatmayinlutfen[at]gmail[dot]com>           - Argument as array modification
+;  Diego Ledda <diego_ledda[at]rapid7[dot]com>                        - Argument as array porting and cleanup
+;
+
 .686P
 .model flat, C
 
@@ -6,43 +18,32 @@
 OPTION LANGUAGE: C
 DoSyscall PROC
 
-  mov eax, [esp+0Ch]               ; get the pointer to Syscall
-  mov eax, [eax+4]                 ; get the number of arguments
-  lea eax, [4*eax]                 ; calculate the number of bytes needed to store the arguments
-  sub esp, eax                     ; make room on the stack for the arguments
-
-  push edi                         ; store edi on stack to be able to restore it later
   push ebx                         ; store ebx on stack to be able to restore it later
-  push ecx                         ; store ecx on stack to be able to restore it later
-
-  mov edi, [esp+0Ch+eax]           ; save the return address
-  mov ebx, [esp+18h+eax]           ; get the pointer to the Syscall structure
-  mov ecx, [ebx+4]                 ; get the number of arguments (.dwNumberOfArgs)
-
-  mov [esp+0Ch], edi               ; place the return address on the stack
-
-  test ecx, ecx                    ; check if we have arguments
-  jz _end                          ; we don't, jump directly to _end
-  xor eax, eax                     ; zero out eax, this will be the index
-  lea edi, [esp+0Ch+4*ecx]         ; set the base pointer that will be used in loop
-
-_loop:
-  mov edx, [edi+10h+4*eax]         ; get the argument
-  mov [esp+10h+4*eax], edx         ; store it to the correct location
-  inc eax                          ; increment the index
-  cmp eax, ecx                     ; check if we have more arguments to process
-  jl _loop                         ; loop back to process the next argument
-
-_end:
-  mov eax, ebx                     ; save the pointer to the Syscall structure to eax
-
-  pop ecx                          ; restore ecx
-  pop ebx                          ; restore ebx
-  pop edi                          ; restore edi
-
-  push [eax+0Ch]                   ; push the syscall stub on the stack
-  mov eax, [eax+8]                 ; store the syscall number to eax
-  ret                              ; return to the stub
+  push esi                         ; store esi on stack to be able to restore it later
+  push edi                         ; store edi on stack to be able to restore it later
+  push ebp                         ; store ebp on stack to be able to restore it later
+  mov ebp, esp                     ; save the current stack pointer in ebp
+  mov edi, [ebp + 14h]             ; move the function pointer (first argument) into edi
+  mov esi, [ebp + 18h]             ; move the syscall number (second argument) into esi
+  mov ebx, [ebp + 1Ch]             ; move the pointer to the arguments (third argument) into ebx
+  mov ecx, [ebp + 20h]             ; move the number of arguments (fourth argument) into ecx
+  test ecx, ecx                    ; if no arguments, jump to _no_args
+  je _no_args
+  lea ebx, [ebx + ecx * 4 - 4]    ; point ebx to the last argument
+_push_args:
+  push [ebx]                       ; push the argument onto the stack
+  sub ebx, 4
+  dec ecx
+  jnz _push_args                   ; repeat until all arguments are pushed onto the stack
+_no_args:
+  mov eax, esi                     ; move the syscall number into eax for the syscall
+  call edi                         ; call the syscall function pointer in edi
+  mov esp, ebp                     ; restore the original stack pointer from ebp
+  pop ebp                          ; restore ebp from stack
+  pop edi                          ; restore edi from stack
+  pop esi                          ; restore esi from stack
+  pop ebx                          ; restore ebx from stack
+  ret
 
 DoSyscall ENDP
 

@@ -13,38 +13,40 @@
 #pragma GCC push_options
 #pragma GCC optimize("O0")
 #endif
+// #ifdef ARKARI_OBFUSCATOR
+// #pragma GCC push_options
+// #pragma GCC optimize("O0")
+// #pragma clang optimize off
+// #endif
 
 #pragma warning(disable : 4100) // Unreferenced parameter 'pSyscall' is intentionally handled by assembly.
-NTSTATUS SyscallStub(Syscall *pSyscall, ...)
+COMPILER_OPTIONS NTSTATUS SyscallStub(Syscall *pSyscall, DWORD dwNumberOfArgs, ULONG_PTR *lpArgs)
 {
-	// This function acts as a bridge to the assembly trampoline. The first argument,
-	// pSyscall, is passed in the first argument register (rcx/x0/stack), and all
-	// subsequent arguments follow the standard C calling convention.
-	return DoSyscall();
+	return DoSyscall(pSyscall->pStub, pSyscall->dwSyscallNr, lpArgs, dwNumberOfArgs);
 }
+
 #pragma warning(default : 4100)
 
-NTSTATUS rdiNtAllocateVirtualMemory(Syscall *pSyscall, HANDLE hProcess, PVOID *pBaseAddress, ULONG_PTR pZeroBits, PSIZE_T pRegionSize, ULONG ulAllocationType, ULONG ulProtect)
+COMPILER_OPTIONS NTSTATUS rdiNtAllocateVirtualMemory(Syscall *pSyscall, HANDLE hProcess, PVOID *pBaseAddress, ULONG_PTR pZeroBits, PSIZE_T pRegionSize, ULONG ulAllocationType, ULONG ulProtect)
 {
-	return SyscallStub(pSyscall, hProcess, pBaseAddress, pZeroBits, pRegionSize, ulAllocationType, ulProtect);
+	ULONG_PTR lpArgs[] = { (ULONG_PTR)hProcess, (ULONG_PTR)pBaseAddress, (ULONG_PTR)pZeroBits, (ULONG_PTR)pRegionSize, (ULONG_PTR)ulAllocationType, (ULONG_PTR)ulProtect };
+	return SyscallStub(pSyscall, sizeof(lpArgs) / sizeof(ULONG_PTR), (ULONG_PTR *)&lpArgs);
 }
-NTSTATUS rdiNtProtectVirtualMemory(Syscall *pSyscall, HANDLE hProcess, PVOID *pBaseAddress, PSIZE_T pNumberOfBytesToProtect, ULONG ulNewAccessProtection, PULONG ulOldAccessProtection)
+COMPILER_OPTIONS NTSTATUS rdiNtProtectVirtualMemory(Syscall *pSyscall, HANDLE hProcess, PVOID *pBaseAddress, PSIZE_T pNumberOfBytesToProtect, ULONG ulNewAccessProtection, PULONG ulOldAccessProtection)
 {
-	return SyscallStub(pSyscall, hProcess, pBaseAddress, pNumberOfBytesToProtect, ulNewAccessProtection, ulOldAccessProtection);
+	ULONG_PTR lpArgs[] = { (ULONG_PTR)hProcess, (ULONG_PTR)pBaseAddress, (ULONG_PTR)pNumberOfBytesToProtect, (ULONG_PTR)ulNewAccessProtection, (ULONG_PTR)ulOldAccessProtection };
+	return SyscallStub(pSyscall, sizeof(lpArgs) / sizeof(ULONG_PTR), (ULONG_PTR *)&lpArgs);
 }
-NTSTATUS rdiNtFlushInstructionCache(Syscall *pSyscall, HANDLE hProcess, PVOID *pBaseAddress, SIZE_T FlushSize)
+COMPILER_OPTIONS NTSTATUS rdiNtFlushInstructionCache(Syscall *pSyscall, HANDLE hProcess, PVOID *pBaseAddress, SIZE_T FlushSize)
 {
-	return SyscallStub(pSyscall, hProcess, pBaseAddress, FlushSize);
+	ULONG_PTR lpArgs[] = { (ULONG_PTR)hProcess, (ULONG_PTR)pBaseAddress, (ULONG_PTR)FlushSize };
+	return SyscallStub(pSyscall, sizeof(lpArgs) / sizeof(ULONG_PTR), (ULONG_PTR *)&lpArgs);
 }
-NTSTATUS rdiNtLockVirtualMemory(Syscall *pSyscall, HANDLE hProcess, PVOID *pBaseAddress, PSIZE_T NumberOfBytesToLock, ULONG MapType)
+COMPILER_OPTIONS NTSTATUS rdiNtLockVirtualMemory(Syscall *pSyscall, HANDLE hProcess, PVOID *pBaseAddress, PSIZE_T NumberOfBytesToLock, ULONG MapType)
 {
-	return SyscallStub(pSyscall, hProcess, pBaseAddress, NumberOfBytesToLock, MapType);
+	ULONG_PTR lpArgs[] = { (ULONG_PTR)hProcess, (ULONG_PTR)pBaseAddress, (ULONG_PTR)NumberOfBytesToLock, (ULONG_PTR)MapType };
+	return SyscallStub(pSyscall, sizeof(lpArgs) / sizeof(ULONG_PTR), (ULONG_PTR *)&lpArgs);
 }
-
-#ifdef __MINGW32__
-#pragma GCC pop_options
-#endif
-#pragma optimize("g", on)
 
 //===============================================================================================//
 // This function resolves the necessary information for direct syscall invocation. It uses
@@ -64,7 +66,7 @@ NTSTATUS rdiNtLockVirtualMemory(Syscall *pSyscall, HANDLE hProcess, PVOID *pBase
 //     exact opcode of a given function's 'svc' instruction, verifying its integrity.
 //     The "stub" we execute is the function address itself.
 //===============================================================================================//
-BOOL getSyscalls(PVOID pNtdllBase, Syscall *Syscalls[], DWORD dwSyscallSize)
+COMPILER_OPTIONS BOOL getSyscalls(PVOID pNtdllBase, Syscall *Syscalls[], DWORD dwSyscallSize)
 {
 	PIMAGE_DOS_HEADER pDosHdr = (PIMAGE_DOS_HEADER)pNtdllBase;
 	PIMAGE_NT_HEADERS pNtHdrs = (PIMAGE_NT_HEADERS)((PBYTE)pNtdllBase + pDosHdr->e_lfanew);
